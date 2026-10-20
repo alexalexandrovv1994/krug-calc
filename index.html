@@ -93,7 +93,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);ou
 .kv .s dt{color:var(--ink);font-weight:600}
 .kv .in dt{padding-left:12px}
 .daysum{border:1.5px solid var(--accent)}
-pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono);background:var(--sunken);border-radius:10px;padding:12px}
+pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);background:var(--sunken);border-radius:10px;padding:12px}
 .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .btn{font:inherit;font-weight:700;font-size:15px;padding:12px 8px;border-radius:10px;border:0;background:var(--accent);color:var(--on-accent);cursor:pointer}
 .btn.ghost{background:var(--sunken);color:var(--ink)}
@@ -128,7 +128,7 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
   window.addEventListener('unhandledrejection', function(e){ show(String(e.reason && e.reason.message || e.reason)); });
 
   /* При выпуске новой версии увеличить APP_V здесь и "v" в version.json */
-  var APP_V = 5;
+  var APP_V = 6;
   window.APP_V = APP_V;
   try {
     fetch('version.json?t=' + Date.now(), {cache: 'no-store'})
@@ -401,44 +401,71 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
     t.any = t.n > 0 || t.trx > 0;
     return t;
   }
-  function circleLines(s, R){
-    var L = [];
-    L.push('Покупка: касса ' + rub(R.A) + ' − ' + rub(R.fee) + ' = ' + rub(R.A - R.fee));
-    L.push('USDT: ' + nf0.format(Math.round(R.A - R.fee)) + ' / ' + r2(R.b) + ' = ' + usd(R.bought));
-    var k = 0;
+  /* ---------- таблица для Telegram ----------
+     Отправляется моноширинным блоком ``` ... ```: все символы одной ширины, столбцы ровные.
+     Ширина 30 символов — строки не переносятся на телефоне. Внутри блока только обычные пробелы,
+     ASCII-минус и без знака ₽ (он в некоторых шрифтах шире) — валюта указана в заголовке. */
+  var TW = 30, MSG = {steps:'', wtext:''};
+  function spc(n){ return n > 0 ? new Array(n + 1).join(' ') : ''; }
+  function t0(v){ return nf0.format(Math.round(v)).replace(/[  ]/g, ' ').replace(/−/g, '-'); }
+  function t2(v){ return nf2.format(v).replace(/[  ]/g, ' ').replace(/−/g, '-'); }
+  function s0(v){ return (Math.round(v) > 0 ? '+' : '') + t0(v); }
+  function ln(label, value){
+    value = String(value);
+    var gap = TW - label.length - value.length;
+    return gap >= 1 ? label + spc(gap) + value : label + '\n' + spc(TW - value.length) + value;
+  }
+  function padR(s, n){ return s + spc(n - s.length); }
+  function padL(s, n){ return spc(n - s.length) + s; }
+  var HR = new Array(TW + 1).join('-'), HR2 = new Array(TW + 1).join('=');
+  function forTg(title, table){ return title + '\n```\n' + table + '\n```'; }
+
+  function circleTable(c, i, R){
+    var L = ['КРУГ ' + (i + 1) + (c.cycle && CYCLE[c.cycle] ? ' (' + CYCLE[c.cycle].short + ')' : '')];
+    L.push(ln('Закуп', t0(R.A)));
+    if (R.fee > 0) L.push(ln('Касса', '-' + t0(R.fee)));
+    L.push(ln('Курс покупки', t2(R.b)));
+    L.push(ln('Куплено USDT', t2(R.bought)));
+    L.push(HR);
     ['proc','off'].forEach(function(kind){
-      (s[kind] || []).forEach(function(r, i){
-        var c = R.T[kind].rows[i]; if (!c || c.u === 0) return;
-        k++;
-        L.push(k + ') ' + (kind === 'proc' ? 'Площадка' : 'Офис биржи') + ': ' + usd(c.u) + ' × ' + r2(c.rate) + ' = ' + rub(c.gross));
-        L.push('   ' + (kind === 'proc' ? 'доплата ' + r2(c.pct) + ' %: +' + rub(c.extra) : 'комиссия ' + r2(c.pct) + ' %: −' + rub(c.extra)) + ' → ' + rub(c.cash));
+      (c[kind] || []).forEach(function(r, j){
+        var x = R.T[kind].rows[j]; if (!x || x.u === 0) return;
+        L.push(ln((kind === 'proc' ? 'Площадка по ' : 'Офис по ') + t2(x.rate), t0(x.gross)));
+        if (x.extra >= 0.5) L.push(ln('  ' + (kind === 'proc' ? 'доплата ' : 'комиссия ') + t2(x.pct) + '%', (kind === 'proc' ? '+' : '-') + t0(x.extra)));
       });
     });
-    L.push('Продано: ' + usd(R.sold) + (Math.abs(R.rest) > 0.01 ? ', остаток ' + usd(R.rest) : ''));
-    L.push('Наличными: ' + rub(R.cash));
-    if (R.full) L.push('Прибыль круга: ' + srub(R.p) + ' (' + r2(R.p / R.A * 100) + ' %)');
-    else if (R.sold > 0) L.push('Прибыль по проданному: ' + srub(R.p) + ' (' + r2(R.p / R.cost * 100) + ' %)');
+    L.push(HR);
+    L.push(ln('Наличными', t0(R.cash)));
+    if (R.sold > 0){
+      L.push(ln(R.full ? 'Прибыль' : 'Прибыль*', s0(R.p)));
+      L.push(ln('Доходность %', t2(R.full ? R.p / R.A * 100 : R.p / R.cost * 100)));
+    }
+    if (Math.abs(R.rest) > 0.01) L.push(ln('Остаток USDT', t2(R.rest)));
+    if (!R.full && R.sold > 0) L.push('* по проданной части');
     return L;
   }
-  function dayText(d, day){
-    var DT = computeDay(d), L = ['РАСЧЁТ ЗА ' + ddmm(day) + '.' + day.slice(0, 4)];
+  function dayReport(d, day){
+    var DT = computeDay(d);
+    if (!DT.any) return null;
+    var L = [];
     d.circles.forEach(function(c, i){
       var R = DT.items[i]; if (!R.okBuy) return;
-      L.push('', circleName(c, i).toUpperCase());
-      L = L.concat(circleLines(c, R));
+      if (L.length) L.push('');
+      L = L.concat(circleTable(c, i, R));
     });
-    if (!DT.any) return '—';
-    L.push('', 'ИТОГ ДНЯ');
-    L.push('Кругов: ' + DT.n);
-    L.push('Закупы: ' + rub(DT.A));
-    L.push('Наличными: ' + rub(DT.cash));
+    if (L.length) L.push('');
+    L.push(HR2);
+    L.push('ИТОГ ДНЯ (' + DT.n + ' ' + plural(DT.n, 'круг', 'круга', 'кругов') + ')');
+    L.push(ln('Закупы', t0(DT.A)));
+    L.push(ln('Наличными', t0(DT.cash)));
     if (DT.trx > 0){
-      L.push('Прибыль кругов: ' + srub(DT.p));
-      L.push('Расходы TRX: −' + rub(DT.trx));
+      L.push(ln('Прибыль кругов', s0(DT.p)));
+      L.push(ln('TRX', '-' + t0(DT.trx)));
     }
-    L.push('Прибыль за день: ' + srub(DT.net) + ' (' + r2(DT.cost > 0 ? DT.net / DT.cost * 100 : 0) + ' %)');
-    if (Math.abs(DT.rest) > 0.01) L.push('Остаток: ' + usd(DT.rest));
-    return L.join('\n');
+    L.push(ln('Прибыль дня', s0(DT.net)));
+    if (DT.cost > 0) L.push(ln('Доходность %', t2(DT.net / DT.cost * 100)));
+    if (Math.abs(DT.rest) > 0.01) L.push(ln('Остаток USDT', t2(DT.rest)));
+    return {title: 'Расчёт за ' + ddmm(day) + '.' + day.slice(0, 4) + ' (суммы в ₽)', table: L.join('\n')};
   }
 
   /* ---------- отрисовка ---------- */
@@ -529,7 +556,9 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
     if (Math.abs(DT.rest) > 0.01) kv.push(['', 'Остаток USDT', r2(DT.rest)]);
     $('d-kv').innerHTML = kv.map(function(x){ return '<div class="' + x[0] + '"><dt>' + esc(x[1]) + '</dt><dd>' + x[2] + '</dd></div>'; }).join('');
 
-    $('steps').textContent = dayText(D, cur);
+    var rep = dayReport(D, cur);
+    $('steps').textContent = rep ? rep.title + '\n\n' + rep.table : '—';
+    MSG.steps = rep ? forTg(rep.title, rep.table) : '';
     dayState();
   }
   function markChips(){
@@ -715,8 +744,7 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
     store.get(keys, function(v){ buildWeek(days, v); });
   }
   function buildWeek(days, v){
-    var tot = {days:0, n:0, A:0, cost:0, cash:0, p:0, trx:0, net:0, pu:0, pg:0, pe:0, ou:0, og:0, oe:0, rest:0}, unsaved = [], rows = [], lines = [];
-    lines.push('ОТЧЁТ ЗА НЕДЕЛЮ ' + ddmm(days[0]) + '–' + ddmm(days[6]) + '.' + days[6].slice(0, 4), '');
+    var tot = {days:0, n:0, A:0, cost:0, cash:0, p:0, trx:0, net:0, pu:0, pg:0, pe:0, ou:0, og:0, oe:0, rest:0}, unsaved = [], rows = [], wrows = [];
     days.forEach(function(day){
       var dlabel = DOW[fromIso(day).getDay()] + ' ' + ddmm(day);
       var rec = readRec(v['d_' + day]), w = normDay(parse(v['w_' + day]));
@@ -733,12 +761,12 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
         rows.push('<tr><td>' + dlabel + '<small>' + sub + '</small>' + (changedAfter ? '<small class="w">есть несохранённые правки</small>' : '') + '</td>' +
           '<td>' + (DT.A >= 1e6 ? r2(DT.A / 1e6) + ' млн' : nf0.format(DT.A)) + '</td>' +
           '<td class="' + (DT.net >= 0 ? 'pos' : 'neg') + '">' + (Math.round(DT.net) > 0 ? '+' : '') + minus(nf0.format(Math.round(DT.net))) + '</td><td>' + (DT.cost > 0 ? r2(pct) : '—') + '</td></tr>');
-        lines.push(dlabel + ' (' + sub + '): закупы ' + rub(DT.A) + ', наличными ' + rub(DT.cash) + ', прибыль ' + srub(DT.net) + (DT.cost > 0 ? ' (' + r2(pct) + ' %)' : '') +
-          (Math.abs(DT.rest) > 0.01 ? ', остаток ' + usd(DT.rest) : ''));
+        wrows.push(padR(dlabel, 8) + ' ' + padL(t0(DT.A), 10) + ' ' + padL(s0(DT.net), 10));
+        if (DT.n > 1 || DT.trx > 0) wrows.push('  ' + (DT.n ? DT.n + ' ' + plural(DT.n, 'круг', 'круга', 'кругов') : 'без кругов') + (DT.trx > 0 ? ', TRX -' + t0(DT.trx) : ''));
       } else if (w && computeDay(w).any){
         unsaved.push(dlabel);
         rows.push('<tr class="empty"><td>' + dlabel + '<small class="w">не сохранён</small></td><td colspan="3">не входит в итог</td></tr>');
-        lines.push(dlabel + ': не сохранён');
+        wrows.push(padR(dlabel, 8) + '  не сохранён');
       } else {
         rows.push('<tr class="empty"><td>' + dlabel + '</td><td colspan="3">—</td></tr>');
       }
@@ -761,17 +789,29 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
       ['', 'Остаток USDT', r2(tot.rest)]
     ];
     $('wtotals').innerHTML = kv.map(function(x){ return '<div class="' + x[0] + '"><dt>' + x[1] + '</dt><dd>' + x[2] + '</dd></div>'; }).join('');
-    lines.push('', 'ИТОГО (дней: ' + tot.days + ', кругов: ' + tot.n + ')');
-    lines.push('Закупы на сумму: ' + rub(tot.A));
-    lines.push('Получено наличными: ' + rub(tot.cash));
-    lines.push('Прибыль кругов: ' + srub(tot.p));
-    if (tot.trx > 0) lines.push('Расходы TRX: −' + rub(tot.trx));
-    lines.push('Чистая прибыль: ' + srub(tot.net) + ' (' + r2(tp) + ' %)');
-    lines.push('Площадке: ' + usd(tot.pu) + ' → ' + rub(tot.pg) + ', доплата ' + srub(tot.pe));
-    lines.push('Офис биржи: ' + usd(tot.ou) + ' → ' + rub(tot.og) + ', комиссия ' + (tot.oe > 0 ? '−' : '') + rub(tot.oe));
-    if (Math.abs(tot.rest) > 0.01) lines.push('Остаток: ' + usd(tot.rest));
-    if (unsaved.length) lines.push('Не сохранены: ' + unsaved.join(', '));
-    $('wtext').textContent = lines.join('\n');
+    var W = [padR('День', 8) + ' ' + padL('Закуп', 10) + ' ' + padL('Прибыль', 10), HR];
+    W = W.concat(wrows.length ? wrows : ['нет сохранённых дней']);
+    W.push(HR2);
+    W.push(ln('Дней / кругов', tot.days + ' / ' + tot.n));
+    W.push(ln('Закупы', t0(tot.A)));
+    W.push(ln('Наличными', t0(tot.cash)));
+    if (tot.trx > 0){
+      W.push(ln('Прибыль кругов', s0(tot.p)));
+      W.push(ln('TRX', '-' + t0(tot.trx)));
+    }
+    W.push(ln('Чистая прибыль', s0(tot.net)));
+    if (tot.cost > 0) W.push(ln('Доходность %', t2(tp)));
+    W.push(HR);
+    W.push(ln('Площадке USDT', t2(tot.pu)));
+    W.push(ln('  на сумму', t0(tot.pg)));
+    W.push(ln('  доплата', s0(tot.pe)));
+    W.push(ln('Офис USDT', t2(tot.ou)));
+    W.push(ln('  на сумму', t0(tot.og)));
+    W.push(ln('  комиссия', (tot.oe >= 0.5 ? '-' : '') + t0(tot.oe)));
+    if (Math.abs(tot.rest) > 0.01) W.push(ln('Остаток USDT', t2(tot.rest)));
+    var wtitle = 'Отчёт за неделю ' + ddmm(days[0]) + '–' + ddmm(days[6]) + '.' + days[6].slice(0, 4) + ' (суммы в ₽)';
+    $('wtext').textContent = wtitle + '\n\n' + W.join('\n');
+    MSG.wtext = forTg(wtitle, W.join('\n'));
   }
 
   /* ---------- копировать / отправить ---------- */
@@ -782,7 +822,7 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
   }
   document.querySelectorAll('[data-copy]').forEach(function(btn){
     btn.addEventListener('click', function(){
-      var src = btn.dataset.copy, text = $(src).textContent, sid = 'status-' + src;
+      var src = btn.dataset.copy, text = MSG[src] || $(src).textContent, sid = 'status-' + src;
       var fallback = function(){
         var rg = document.createRange(); rg.selectNodeContents($(src));
         var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rg);
@@ -796,7 +836,7 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
   });
   document.querySelectorAll('[data-share]').forEach(function(btn){
     btn.addEventListener('click', function(){
-      var url = 'https://t.me/share/url?url=' + encodeURIComponent($(btn.dataset.share).textContent);
+      var url = 'https://t.me/share/url?url=' + encodeURIComponent(MSG[btn.dataset.share] || $(btn.dataset.share).textContent);
       if (inTg && tg.openTelegramLink){ try { tg.openTelegramLink(url); return; } catch(e) {} }
       window.open(url, '_blank');
     });
