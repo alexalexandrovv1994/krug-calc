@@ -7,7 +7,7 @@
 <title>Калькулятор круга</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-/* Мини-приложение Telegram: покупка → два канала продажи (площадка, офис биржи) → итог. Один столбец, цвета по теме Telegram, без внешних шрифтов */
+/* Мини-приложение Telegram: дата → покупка → пополнение площадки и продажа в офисе → итог дня → сохранение → отчёт за неделю. Один столбец, цвета по теме Telegram */
 :root{
   --bg:#F1F4F2; --surface:#FFFFFF; --sunken:#E9EEEB; --ink:#13201B; --muted:#55645E; --line:#D2DBD7;
   --accent:#16795A; --accent-soft:#DCEEE6; --on-accent:#FFFFFF; --bad:#B4381F; --bad-soft:#F6E0D9; --warn:#93600F; --warn-soft:#F4E8CF;
@@ -35,6 +35,14 @@ h1{font-size:21px;line-height:1.2;margin:2px 0 0;font-weight:700}
 .card-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
 .card-h h2{font-size:16px;margin:0;font-weight:700}
 .card-h span{font-size:13px;color:var(--muted)}
+.day-nav{display:grid;grid-template-columns:48px minmax(0,1fr) 48px;gap:8px}
+.day-nav button,.week-nav button{font:700 20px/1 var(--font);border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.day-nav input{text-align:center;font:600 17px/1.2 var(--font)}
+.day-info{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:14px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:12.5px;font-weight:700;white-space:nowrap}
+.chip.ok{background:var(--accent-soft);color:var(--accent)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.neutral{background:var(--sunken);color:var(--muted)}
 .chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .chips button{font:inherit;font-size:14px;font-weight:600;padding:8px 4px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);white-space:nowrap;cursor:pointer}
 .chips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
@@ -75,15 +83,28 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);ou
 .kv .in dt{padding-left:12px}
 pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono);background:var(--sunken);border-radius:10px;padding:12px}
 .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.btns button{font:inherit;font-weight:700;font-size:15px;padding:12px 8px;border-radius:10px;border:0;background:var(--accent);color:var(--on-accent);cursor:pointer}
-.btns button.ghost{background:var(--sunken);color:var(--ink)}
+.btn{font:inherit;font-weight:700;font-size:15px;padding:12px 8px;border-radius:10px;border:0;background:var(--accent);color:var(--on-accent);cursor:pointer}
+.btn.ghost{background:var(--sunken);color:var(--ink)}
+.btn.wide{width:100%;padding:14px;font-size:16px}
+.btn.outline{background:transparent;border:1.5px solid var(--accent);color:var(--accent)}
 .status{min-height:1.2em;margin:0;font-size:13.5px;color:var(--muted);text-align:center}
+.week-nav{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;gap:8px;align-items:center;text-align:center}
+.week-nav button{height:40px}
+.week-nav strong{font-size:16px}
+.wtable{width:100%;border-collapse:collapse;font-size:14px}
+.wtable th{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:right;padding:6px 4px;border-bottom:1px solid var(--line)}
+.wtable th:first-child,.wtable td:first-child{text-align:left}
+.wtable td{padding:8px 4px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.wtable td:first-child{font-family:var(--font);font-weight:600}
+.wtable tr.empty td{color:var(--muted)}
+.wtable .pos{color:var(--accent)} .wtable .neg{color:var(--bad)}
+.wtable small{display:block;font:600 11px var(--font);color:var(--warn)}
 .diag{margin:0;font-size:12px;color:var(--muted);text-align:center}
 .err{position:fixed;left:8px;right:8px;top:8px;z-index:9;padding:10px 12px;border-radius:10px;background:var(--bad-soft);color:var(--bad);font:13px/1.4 var(--mono);white-space:pre-wrap;word-break:break-word}
 [hidden]{display:none!important}
 </style>
 <script>
-/* Показываем любую ошибку прямо на экране: в Telegram на ПК консоли не видно */
+/* Ошибки — прямо на экран (в Telegram на ПК консоли не видно) и автообновление по version.json */
 (function(){
   function show(msg){
     var el = document.getElementById('err');
@@ -93,10 +114,9 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
   window.addEventListener('error', function(e){ show((e.message || 'неизвестно') + (e.lineno ? ' (строка ' + e.lineno + ')' : '')); });
   window.addEventListener('unhandledrejection', function(e){ show(String(e.reason && e.reason.message || e.reason)); });
 
-  /* Автообновление: Telegram (особенно на ПК) держит старую копию страницы до 10 минут.
-     Сверяем номер версии с version.json и при необходимости перезагружаемся с новым адресом.
-     При выпуске новой версии увеличить APP_V здесь и "v" в version.json. */
-  var APP_V = 3;
+  /* При выпуске новой версии увеличить APP_V здесь и "v" в version.json */
+  var APP_V = 4;
+  window.APP_V = APP_V;
   try {
     fetch('version.json?t=' + Date.now(), {cache: 'no-store'})
       .then(function(r){ return r.json(); })
@@ -118,6 +138,15 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
     <h1>Калькулятор круга</h1>
     <p class="sub">Покупка USDT → пополнение площадки и продажа в офисе биржи</p>
   </header>
+
+  <section class="card" aria-label="День">
+    <div class="day-nav">
+      <button type="button" id="dprev" aria-label="Предыдущий день">‹</button>
+      <input type="date" id="date" aria-label="Дата">
+      <button type="button" id="dnext" aria-label="Следующий день">›</button>
+    </div>
+    <div class="day-info"><span id="day-name">—</span><span class="chip neutral" id="day-state">загрузка…</span></div>
+  </section>
 
   <section class="card" aria-label="Покупка">
     <div class="card-h"><h2>Покупка</h2><span>наличные через кассу</span></div>
@@ -151,7 +180,7 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
 
   <section class="card" aria-live="polite">
     <div>
-      <span class="cap" id="r-cap">Прибыль за круг</span>
+      <span class="cap" id="r-cap">Прибыль за день</span>
       <div class="big" id="r-profit">—</div>
       <div class="pct" id="r-pct">—</div>
     </div>
@@ -164,28 +193,46 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
       <div class="s"><dt>Получено наличными</dt><dd id="r-cash">—</dd></div>
       <div class="in"><dt>доплата площадки</dt><dd id="r-bonus">—</dd></div>
       <div class="in"><dt>комиссия биржи</dt><dd id="r-comm">—</dd></div>
-      <div><dt>Себестоимость 1 USDT</dt><dd id="r-unit">—</dd></div>
-      <div><dt>Средняя продажа 1 USDT</dt><dd id="r-avg">—</dd></div>
     </dl>
-    <div class="row">
-      <div class="f"><label for="n">Кругов в неделю</label><input id="n" inputmode="decimal"></div>
-      <dl class="kv" style="align-self:end">
-        <div class="s"><dt>Неделя</dt><dd id="r-week">—</dd></div>
-        <div class="s"><dt>Месяц</dt><dd id="r-month">—</dd></div>
-      </dl>
-    </div>
+  </section>
+
+  <section class="card">
+    <button type="button" class="btn wide" id="save">Сохранить день</button>
+    <p class="status" id="save-status" role="status"></p>
   </section>
 
   <section class="card">
     <span class="cap">Расчёт по шагам</span>
     <pre id="steps">—</pre>
     <div class="btns">
-      <button type="button" id="copy">Скопировать</button>
-      <button type="button" class="ghost" id="share">Отправить в чат</button>
+      <button type="button" class="btn" data-copy="steps">Скопировать</button>
+      <button type="button" class="btn ghost" data-share="steps">Отправить в чат</button>
     </div>
-    <p class="status" id="status" role="status"></p>
+    <p class="status" id="status-steps" role="status"></p>
   </section>
-  <p class="diag" id="diag">версия 3 · 20.10</p>
+
+  <button type="button" class="btn wide outline" id="week-btn">Отчёт за неделю</button>
+
+  <section class="card" id="week" hidden aria-live="polite">
+    <div class="week-nav">
+      <button type="button" id="wprev" aria-label="Предыдущая неделя">‹</button>
+      <strong id="wtitle">—</strong>
+      <button type="button" id="wnext" aria-label="Следующая неделя">›</button>
+    </div>
+    <table class="wtable">
+      <thead><tr><th>День</th><th>Вложено</th><th>Прибыль</th><th>%</th></tr></thead>
+      <tbody id="wbody"></tbody>
+    </table>
+    <dl class="kv" id="wtotals"></dl>
+    <pre id="wtext">—</pre>
+    <div class="btns">
+      <button type="button" class="btn" data-copy="wtext">Скопировать</button>
+      <button type="button" class="btn ghost" data-share="wtext">Отправить в чат</button>
+    </div>
+    <p class="status" id="status-wtext" role="status"></p>
+  </section>
+
+  <p class="diag" id="diag">версия 4</p>
 </main>
 <div class="err" id="err" hidden></div>
 
@@ -210,38 +257,114 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
   function usd(v){ return r2(v) + ' USDT'; }
   function num(s){ var v = parseFloat(String(s == null ? '' : s).replace(/[\s  ]/g,'').replace(',','.')); return isFinite(v) ? v : NaN; }
   function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
-  function plural(v, a, b, c){ var m10 = v % 10, m100 = v % 100;
-    if (m10 === 1 && m100 !== 11) return a; if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return b; return c; }
+  function clone(o){ return JSON.parse(JSON.stringify(o)); }
+  function parse(s){ try { return s ? JSON.parse(s) : null; } catch(e) { return null; } }
 
-  var KEY = 'krug_calc_v2';
-  var DEF = {A:'2 000 000', buy:'85,08', fee:'5 000', n:'5',
-    proc:[{amt:'500 000', unit:'rub', rate:'87,27', pct:'0,75'}],
-    off:[{amt:'1 500 000', unit:'rub', rate:'87,00', pct:'0,4'}]};
-  var S = JSON.parse(JSON.stringify(DEF));
+  /* ---------- даты ---------- */
+  var DOW = ['вс','пн','вт','ср','чт','пт','сб'];
+  var DOWF = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+  var MON = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  function pad(n){ return (n < 10 ? '0' : '') + n; }
+  function iso(d){ return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function fromIso(s){ var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function addDays(s, n){ var d = fromIso(s); d.setDate(d.getDate() + n); return iso(d); }
+  function ddmm(s){ var d = fromIso(s); return pad(d.getDate()) + '.' + pad(d.getMonth() + 1); }
+  function weekStart(s){ var d = fromIso(s); return addDays(s, -((d.getDay() + 6) % 7)); }
+  var TODAY = iso(new Date());
+
+  /* ---------- хранилище: облако Telegram (общее для телефона и ПК) + копия на устройстве ---------- */
+  var store = {
+    get: function(keys, cb){
+      var local = function(){ var o = {}; keys.forEach(function(k){ try { o[k] = localStorage.getItem(k) || ''; } catch(e) { o[k] = ''; } }); return o; };
+      if (!cloud) return cb(local());
+      try { cloud.getItems(keys, function(err, vals){ if (err || !vals) return cb(local()); keys.forEach(function(k){ if (vals[k] == null) vals[k] = ''; }); cb(vals); }); }
+      catch(e) { cb(local()); }
+    },
+    set: function(k, v, cb){
+      try { localStorage.setItem(k, v); } catch(e) {}
+      if (!cloud) return cb && cb(null);
+      try { cloud.setItem(k, v, function(err){ cb && cb(err); }); } catch(e) { cb && cb(e); }
+    },
+    remove: function(k){
+      try { localStorage.removeItem(k); } catch(e) {}
+      if (cloud){ try { cloud.removeItem(k, function(){}); } catch(e) {} }
+    }
+  };
+
+  /* ---------- состояние дня ---------- */
+  var DEF = {A:'2 000 000', buy:'85,08', fee:'5 000',
+    proc:[{amt:'', unit:'rub', rate:'87,27', pct:'0,75'}],
+    off:[{amt:'', unit:'rub', rate:'87,00', pct:'0,4'}]};
   var NAMES = {proc:['Пополнение','Доплата, %'], off:['Продажа','Комиссия, %']};
+  var S = clone(DEF), cur = TODAY, savedRec = null, ready = false;
 
-  function apply(json){
-    try {
-      var o = JSON.parse(json || 'null'); if (!o || !Array.isArray(o.proc) || !Array.isArray(o.off)) return false;
-      S = o; return true;
-    } catch(e) { return false; }
-  }
-  var timer = null;
-  function save(){
-    clearTimeout(timer);
-    timer = setTimeout(function(){
-      var s = JSON.stringify(S);
-      try { localStorage.setItem(KEY, s); } catch(e) {}
-      if (cloud){ try { cloud.setItem(KEY, s, function(){}); } catch(e) {} }
-    }, 400);
+  function valid(o){ return o && Array.isArray(o.proc) && Array.isArray(o.off); }
+  function clean(o){ return {A:o.A || '', buy:o.buy || '', fee:o.fee || '', proc:o.proc, off:o.off}; }
+  function fresh(){
+    var p0 = S.proc[0] || DEF.proc[0], o0 = S.off[0] || DEF.off[0];
+    return {A:'', buy:S.buy, fee:S.fee,
+      proc:[{amt:'', unit:p0.unit, rate:p0.rate, pct:p0.pct}],
+      off:[{amt:'', unit:o0.unit, rate:o0.rate, pct:o0.pct}]};
   }
 
-  /* ---------- строки каналов ---------- */
+  /* ---------- расчёт ---------- */
+  function rowCalc(kind, r){
+    var amt = num(r.amt), rate = num(r.rate), pct = num(r.pct);
+    if (!(rate > 0) || !(amt >= 0) || !(pct >= 0)) return null;
+    var u = r.unit === 'usdt' ? amt : amt / rate;
+    var gross = u * rate, extra = gross * pct / 100;
+    return {u:u, gross:gross, extra:extra, cash: kind === 'proc' ? gross + extra : gross - extra, rate:rate, pct:pct};
+  }
+  function compute(s){
+    var A = num(s.A), b = num(s.buy), fee = num(s.fee);
+    var okBuy = A > 0 && b > 0 && fee >= 0 && A > fee;
+    var bought = okBuy ? (A - fee) / b : 0;
+    var T = {};
+    ['proc','off'].forEach(function(kind){
+      var t = {u:0, gross:0, extra:0, cash:0, rows:[]};
+      (s[kind] || []).forEach(function(r){
+        var c = rowCalc(kind, r); t.rows.push(c);
+        if (c){ t.u += c.u; t.gross += c.gross; t.extra += c.extra; t.cash += c.cash; }
+      });
+      T[kind] = t;
+    });
+    var sold = T.proc.u + T.off.u, cash = T.proc.cash + T.off.cash;
+    var cost = okBuy ? A * sold / bought : 0;
+    return {A:A, b:b, fee:fee, okBuy:okBuy, bought:bought, T:T, sold:sold, rest:bought - sold, cash:cash, cost:cost,
+      p:cash - cost, full: okBuy && Math.abs(bought - sold) <= 0.01};
+  }
+  function stepsText(s, R, title){
+    if (!R.okBuy) return '—';
+    var L = [];
+    if (title) { L.push(title); L.push(''); }
+    L.push('ПОКУПКА');
+    L.push('Касса: ' + rub(R.A) + ' − ' + rub(R.fee) + ' = ' + rub(R.A - R.fee));
+    L.push('USDT: ' + nf0.format(Math.round(R.A - R.fee)) + ' / ' + r2(R.b) + ' = ' + usd(R.bought));
+    var k = 0;
+    ['proc','off'].forEach(function(kind){
+      (s[kind] || []).forEach(function(r, i){
+        var c = R.T[kind].rows[i]; if (!c || c.u === 0) return;
+        if (!k) { L.push(''); L.push('ПРОДАЖА'); }
+        k++;
+        L.push(k + ') ' + (kind === 'proc' ? 'Площадка' : 'Офис биржи') + ': ' + usd(c.u) + ' × ' + r2(c.rate) + ' = ' + rub(c.gross));
+        L.push('   ' + (kind === 'proc' ? 'доплата ' + r2(c.pct) + ' %: +' + rub(c.extra) : 'комиссия ' + r2(c.pct) + ' %: −' + rub(c.extra)) + ' → ' + rub(c.cash));
+      });
+    });
+    L.push('');
+    L.push('ИТОГ');
+    L.push('Продано: ' + usd(R.sold) + (Math.abs(R.rest) > 0.01 ? ', остаток ' + usd(R.rest) : ''));
+    L.push('Наличными: ' + rub(R.cash));
+    if (R.full) L.push('Прибыль: ' + rub(R.cash) + ' − ' + rub(R.A) + ' = ' + srub(R.p) + ' (' + r2(R.p / R.A * 100) + ' %)');
+    else if (R.sold > 0) L.push('Себестоимость проданного: ' + rub(R.cost) + '\nПрибыль по проданному: ' + srub(R.p) + ' (' + r2(R.p / R.cost * 100) + ' %)');
+    return L.join('\n');
+  }
+
+  /* ---------- отрисовка дня ---------- */
   function renderOps(kind){
     var nm = NAMES[kind];
     $('ops-' + kind).innerHTML = S[kind].map(function(r, i){
       var id = kind + '-' + i;
-      return '<div class="op" data-kind="' + kind + '" data-i="' + i + '">' +
+      return '<div class="op" data-i="' + i + '">' +
         '<div class="op-top"><span>' + nm[0] + ' ' + (i + 1) + '</span><button type="button" class="x" data-act="del" aria-label="Удалить строку">✕ убрать</button></div>' +
         '<div class="f"><div class="lab"><label for="' + id + '-amt">Сумма</label><button type="button" class="link" data-act="rest">весь остаток</button></div>' +
           '<div class="unit"><input id="' + id + '-amt" data-k="amt" inputmode="decimal" value="' + esc(r.amt) + '">' +
@@ -252,111 +375,125 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
       '</div>';
     }).join('');
   }
-  function rowCalc(kind, r){
-    var amt = num(r.amt), rate = num(r.rate), pct = num(r.pct);
-    if (!(rate > 0) || !(amt >= 0) || !(pct >= 0)) return null;
-    var u = r.unit === 'usdt' ? amt : amt / rate;
-    var gross = u * rate, extra = gross * pct / 100;
-    return {u:u, gross:gross, extra:extra, cash: kind === 'proc' ? gross + extra : gross - extra, rate:rate, pct:pct};
-  }
-
-  /* ---------- расчёт ---------- */
   var last = null;
   function calc(){
-    var A = num(S.A), b = num(S.buy), fee = num(S.fee), n = num(S.n);
-    var okBuy = A > 0 && b > 0 && fee >= 0 && A > fee;
-    var bought = okBuy ? (A - fee) / b : 0;
-    $('got').innerHTML = okBuy ? 'Куплено: <b>' + usd(bought) + '</b> · себестоимость <b>' + r2(A / bought) + '</b> ₽ за 1 USDT' : 'Проверьте сумму, курс и комиссию кассы.';
-
-    var T = {proc:{u:0,gross:0,extra:0,cash:0,rows:[]}, off:{u:0,gross:0,extra:0,cash:0,rows:[]}};
+    var R = compute(S); last = R;
+    $('got').innerHTML = R.okBuy ? 'Куплено: <b>' + usd(R.bought) + '</b>' : 'Заполните сумму круга, курс и комиссию кассы.';
     ['proc','off'].forEach(function(kind){
       S[kind].forEach(function(r, i){
-        var c = rowCalc(kind, r), el = $(kind + '-' + i + '-sum');
-        T[kind].rows.push(c);
-        if (!c){ if (el) el.textContent = 'Заполните сумму и курс'; return; }
-        T[kind].u += c.u; T[kind].gross += c.gross; T[kind].extra += c.extra; T[kind].cash += c.cash;
-        if (el) el.innerHTML = usd(c.u) + ' × ' + r2(c.rate) + ' = ' + rub(c.gross) + '<br>' +
+        var c = R.T[kind].rows[i], el = $(kind + '-' + i + '-sum'); if (!el) return;
+        if (!c){ el.textContent = 'Заполните сумму и курс'; return; }
+        el.innerHTML = usd(c.u) + ' × ' + r2(c.rate) + ' = ' + rub(c.gross) + '<br>' +
           (kind === 'proc' ? 'доплата ' + r2(c.pct) + ' %: +' + rub(c.extra) : 'комиссия ' + r2(c.pct) + ' %: −' + rub(c.extra)) +
           ' → <b>' + rub(c.cash) + '</b>';
       });
     });
-    var sold = T.proc.u + T.off.u, rest = bought - sold, cash = T.proc.cash + T.off.cash;
     var bal = $('bal');
-    if (!okBuy){ bal.className = 'bal warn'; bal.textContent = 'Сначала заполните покупку.'; }
-    else if (rest > 0.01){ bal.className = 'bal warn'; bal.innerHTML = 'Не распределено: <b>' + usd(rest) + '</b> (≈ ' + rub(rest * A / bought) + ' по себестоимости)'; }
-    else if (rest < -0.01){ bal.className = 'bal bad'; bal.innerHTML = 'Продано больше, чем куплено, на <b>' + usd(-rest) + '</b>'; }
+    if (!R.okBuy){ bal.className = 'bal warn'; bal.textContent = 'Сначала заполните покупку.'; }
+    else if (R.rest > 0.01){ bal.className = 'bal warn'; bal.innerHTML = 'Не распределено: <b>' + usd(R.rest) + '</b>'; }
+    else if (R.rest < -0.01){ bal.className = 'bal bad'; bal.innerHTML = 'Продано больше, чем куплено, на <b>' + usd(-R.rest) + '</b>'; }
     else { bal.className = 'bal ok'; bal.textContent = 'Все USDT распределены'; }
 
-    var cost = okBuy ? A * sold / bought : 0;
-    var p = cash - cost;
-    var full = okBuy && Math.abs(rest) <= 0.01;
-    $('r-cap').textContent = full || !okBuy ? 'Прибыль за круг' : 'Прибыль по проданной части';
-    if (okBuy && sold > 0){
-      $('r-profit').textContent = srub(p);
-      $('r-profit').className = 'big ' + (p >= 0 ? 'pos' : 'neg');
-      $('r-pct').textContent = (p > 0 ? '+' : '') + r2(p / cost * 100) + ' % к вложенным';
-    } else {
-      $('r-profit').textContent = '—'; $('r-profit').className = 'big'; $('r-pct').textContent = '—';
-    }
-    $('r-bought').textContent = okBuy ? usd(bought) : '—';
-    $('r-sold').textContent = usd(sold);
-    $('r-sold-p').textContent = usd(T.proc.u);
-    $('r-sold-o').textContent = usd(T.off.u);
-    $('r-rest').textContent = okBuy ? usd(rest) : '—';
-    $('r-cash').textContent = rub(cash);
-    $('r-bonus').textContent = srub(T.proc.extra);
-    $('r-comm').textContent = T.off.extra > 0 ? '−' + rub(T.off.extra) : rub(0);
-    $('r-unit').textContent = okBuy ? r2(A / bought) + ' ₽' : '—';
-    $('r-avg').textContent = sold > 0 ? r2(cash / sold) + ' ₽' : '—';
-    var ok = okBuy && sold > 0 && n >= 0;
-    $('r-week').textContent = ok ? srub(p * n) : '—';
-    $('r-month').textContent = ok ? srub(p * n * 52 / 12) : '—';
-
-    /* шаги */
-    if (!okBuy){ $('steps').textContent = '—'; return; }
-    var L = [];
-    L.push('ПОКУПКА');
-    L.push('Касса: ' + rub(A) + ' − ' + rub(fee) + ' = ' + rub(A - fee));
-    L.push('USDT: ' + nf0.format(Math.round(A - fee)) + ' / ' + r2(b) + ' = ' + usd(bought));
-    var k = 0;
-    ['proc','off'].forEach(function(kind){
-      S[kind].forEach(function(r, i){
-        var c = T[kind].rows[i]; if (!c || c.u === 0) return;
-        if (!k) { L.push(''); L.push('ПРОДАЖА'); }
-        k++;
-        L.push(k + ') ' + (kind === 'proc' ? 'Площадка' : 'Офис биржи') + ': ' + usd(c.u) + ' × ' + r2(c.rate) + ' = ' + rub(c.gross));
-        L.push('   ' + (kind === 'proc' ? 'доплата ' + r2(c.pct) + ' %: +' + rub(c.extra) : 'комиссия ' + r2(c.pct) + ' %: −' + rub(c.extra)) + ' → ' + rub(c.cash));
-      });
-    });
-    L.push('');
-    L.push('ИТОГ');
-    L.push('Продано: ' + usd(sold) + (Math.abs(rest) > 0.01 ? ', остаток ' + usd(rest) : ''));
-    L.push('Наличными: ' + rub(cash));
-    if (full) L.push('Прибыль: ' + rub(cash) + ' − ' + rub(A) + ' = ' + srub(p) + ' (' + r2(p / A * 100) + ' %)');
-    else if (sold > 0) L.push('Себестоимость проданного: ' + rub(cost) + '\nПрибыль по проданному: ' + srub(p) + ' (' + r2(p / cost * 100) + ' %)');
-    if (ok) L.push('За неделю (' + nf0.format(n) + ' ' + plural(Math.round(n), 'круг', 'круга', 'кругов') + '): ' + srub(p * n));
-    $('steps').textContent = L.join('\n');
-    last = {bought:bought, sold:sold, rest:rest};
-  }
-
-  /* ---------- события ---------- */
-  function bindTop(id, key){
-    $(id).value = S[key];
-    $(id).addEventListener('input', function(){ S[key] = $(id).value; if (key === 'A') markChips(); calc(); save(); });
-    $(id).addEventListener('blur', function(){ var v = num($(id).value); if (isFinite(v) && (key === 'A' || key === 'fee')){ $(id).value = S[key] = nf0.format(v); } });
+    $('r-cap').textContent = R.full || !R.okBuy ? 'Прибыль за день' : 'Прибыль по проданной части';
+    if (R.okBuy && R.sold > 0){
+      $('r-profit').textContent = srub(R.p);
+      $('r-profit').className = 'big ' + (R.p >= 0 ? 'pos' : 'neg');
+      $('r-pct').textContent = (R.p > 0 ? '+' : '') + r2(R.p / R.cost * 100) + ' % к вложенным';
+    } else { $('r-profit').textContent = '—'; $('r-profit').className = 'big'; $('r-pct').textContent = '—'; }
+    $('r-bought').textContent = R.okBuy ? usd(R.bought) : '—';
+    $('r-sold').textContent = usd(R.sold);
+    $('r-sold-p').textContent = usd(R.T.proc.u);
+    $('r-sold-o').textContent = usd(R.T.off.u);
+    $('r-rest').textContent = R.okBuy ? usd(R.rest) : '—';
+    $('r-cash').textContent = rub(R.cash);
+    $('r-bonus').textContent = srub(R.T.proc.extra);
+    $('r-comm').textContent = R.T.off.extra > 0 ? '−' + rub(R.T.off.extra) : rub(0);
+    $('steps').textContent = stepsText(S, R, 'РАСЧЁТ ЗА ' + ddmm(cur) + '.' + cur.slice(0, 4));
+    dayState();
   }
   function markChips(){
     var A = num(S.A);
     document.querySelectorAll('[data-a]').forEach(function(b){ b.setAttribute('aria-pressed', num(b.dataset.a) === A ? 'true' : 'false'); });
   }
+  function dayState(){
+    var d = fromIso(cur), el = $('day-state');
+    var rel = cur === TODAY ? ', сегодня' : (cur === addDays(TODAY, -1) ? ', вчера' : '');
+    $('day-name').textContent = DOWF[d.getDay()] + ', ' + d.getDate() + ' ' + MON[d.getMonth()] + rel;
+    if (!ready){ el.className = 'chip neutral'; el.textContent = 'загрузка…'; return; }
+    if (!savedRec){ el.className = 'chip warn'; el.textContent = 'не сохранён'; return; }
+    if (JSON.stringify(clean(savedRec.s)) === JSON.stringify(clean(S))){ el.className = 'chip ok'; el.textContent = 'сохранён ✓'; }
+    else { el.className = 'chip warn'; el.textContent = 'изменён после сохранения'; }
+  }
+  function showDay(){
+    $('date').value = cur;
+    ['A','buy','fee'].forEach(function(k){ $(k).value = S[k]; });
+    renderOps('proc'); renderOps('off'); markChips(); calc();
+  }
+
+  /* ---------- черновик, сохранение, загрузка дня ---------- */
+  var timer = null;
+  function draft(now){
+    if (!ready) return;
+    clearTimeout(timer);
+    var day = cur, s = JSON.stringify(clean(S));
+    var go = function(){ store.set('w_' + day, s); };
+    if (now) go(); else timer = setTimeout(go, 500);
+  }
+  function changed(){ calc(); draft(); }
+  function loadDay(day){
+    ready = false; dayState();
+    store.get(['w_' + day, 'd_' + day], function(v){
+      if (day !== cur) return;
+      savedRec = parse(v['d_' + day]); if (savedRec && !valid(savedRec.s)) savedRec = null;
+      var w = parse(v['w_' + day]);
+      S = valid(w) ? clean(w) : (savedRec ? clean(clone(savedRec.s)) : fresh());
+      ready = true; showDay();
+    });
+  }
+  function goDay(day){
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return;
+    draft(true);
+    cur = day; $('save-status').textContent = '';
+    loadDay(day);
+  }
+  $('dprev').addEventListener('click', function(){ goDay(addDays(cur, -1)); });
+  $('dnext').addEventListener('click', function(){ goDay(addDays(cur, 1)); });
+  $('date').addEventListener('change', function(){ if ($('date').value) goDay($('date').value); });
+
+  $('save').addEventListener('click', function(){
+    if (!ready) return;
+    var R = compute(S);
+    if (!R.okBuy){ $('save-status').textContent = 'Нечего сохранять: заполните покупку.'; return; }
+    var rec = {s: clean(clone(S)), at: new Date().toISOString()};
+    var day = cur;
+    store.set('d_' + day, JSON.stringify(rec), function(err){
+      if (err){ $('save-status').textContent = 'Не удалось сохранить в облако Telegram, сохранено на этом устройстве.'; }
+      else {
+        var t = new Date();
+        $('save-status').textContent = 'День ' + ddmm(day) + ' сохранён в ' + pad(t.getHours()) + ':' + pad(t.getMinutes()) +
+          (R.full ? '' : '. Внимание: не все USDT распределены.');
+        if (tg && tg.HapticFeedback){ try { tg.HapticFeedback.notificationOccurred('success'); } catch(e) {} }
+      }
+      if (day === cur){ savedRec = rec; dayState(); }
+      if (!$('week').hidden) loadWeek();
+    });
+    draft(true);
+  });
+
+  /* ---------- ввод ---------- */
+  function bindTop(id){
+    $(id).addEventListener('input', function(){ S[id] = $(id).value; if (id === 'A') markChips(); changed(); });
+    $(id).addEventListener('blur', function(){ var v = num($(id).value); if (isFinite(v) && (id === 'A' || id === 'fee')){ $(id).value = S[id] = nf0.format(v); dayState(); } });
+  }
+  ['A','buy','fee'].forEach(bindTop);
   document.querySelectorAll('[data-a]').forEach(function(btn){
-    btn.addEventListener('click', function(){ S.A = nf0.format(num(btn.dataset.a)); $('A').value = S.A; markChips(); calc(); save(); });
+    btn.addEventListener('click', function(){ S.A = nf0.format(num(btn.dataset.a)); $('A').value = S.A; markChips(); changed(); });
   });
   ['proc','off'].forEach(function(kind){
     var box = $('ops-' + kind);
     box.addEventListener('input', function(e){
       var t = e.target, op = t.closest('.op'); if (!op || !t.dataset.k || t.tagName === 'SELECT') return;
-      S[kind][+op.dataset.i][t.dataset.k] = t.value; calc(); save();
+      S[kind][+op.dataset.i][t.dataset.k] = t.value; changed();
     });
     box.addEventListener('change', function(e){
       var t = e.target, op = t.closest('.op'); if (!op || t.dataset.k !== 'unit') return;
@@ -364,25 +501,24 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
       if (c){ r.amt = t.value === 'usdt' ? nf2.format(c.u) : nf0.format(Math.round(c.u * c.rate)); }
       r.unit = t.value;
       op.querySelector('[data-k="amt"]').value = r.amt;
-      calc(); save();
+      changed();
     });
     box.addEventListener('focusout', function(e){
       var t = e.target, op = t.closest('.op'); if (!op || t.dataset.k !== 'amt') return;
       var r = S[kind][+op.dataset.i], v = num(t.value);
-      if (isFinite(v)){ r.amt = r.unit === 'usdt' ? nf2.format(v) : nf0.format(v); t.value = r.amt; save(); }
+      if (isFinite(v)){ r.amt = r.unit === 'usdt' ? nf2.format(v) : nf0.format(v); t.value = r.amt; draft(); dayState(); }
     });
     box.addEventListener('click', function(e){
       var t = e.target.closest('button'); if (!t) return;
       var op = t.closest('.op'), i = +op.dataset.i, r = S[kind][i];
-      if (t.dataset.act === 'del'){ S[kind].splice(i, 1); renderOps(kind); calc(); save(); }
+      if (t.dataset.act === 'del'){ S[kind].splice(i, 1); renderOps(kind); changed(); }
       if (t.dataset.act === 'rest' && last){
-        var c = rowCalc(kind, r), cur = c ? c.u : 0, rate = num(r.rate);
-        var u = Math.max(cur + last.rest, 0);
+        var c = rowCalc(kind, r), u = Math.max((c ? c.u : 0) + last.rest, 0), rate = num(r.rate);
         if (r.unit === 'usdt') r.amt = nf2.format(u);
         else if (rate > 0) r.amt = nf0.format(Math.round(u * rate));
         else return;
         op.querySelector('[data-k="amt"]').value = r.amt;
-        calc(); save();
+        changed();
       }
     });
   });
@@ -390,47 +526,129 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
     btn.addEventListener('click', function(){
       var kind = btn.dataset.add, prev = S[kind][S[kind].length - 1] || DEF[kind][0];
       S[kind].push({amt:'', unit:prev.unit, rate:prev.rate, pct:prev.pct});
-      renderOps(kind); calc(); save();
+      renderOps(kind); changed();
       var inp = $(kind + '-' + (S[kind].length - 1) + '-amt'); if (inp) inp.focus();
     });
   });
 
-  function status(msg, ok){
-    $('status').textContent = msg;
+  /* ---------- отчёт за неделю ---------- */
+  var wk = weekStart(TODAY);
+  $('week-btn').addEventListener('click', function(){
+    var box = $('week');
+    if (box.hidden){ wk = weekStart(cur); box.hidden = false; $('week-btn').textContent = 'Скрыть отчёт за неделю'; loadWeek(); box.scrollIntoView({behavior:'smooth', block:'start'}); }
+    else { box.hidden = true; $('week-btn').textContent = 'Отчёт за неделю'; }
+  });
+  $('wprev').addEventListener('click', function(){ wk = addDays(wk, -7); loadWeek(); });
+  $('wnext').addEventListener('click', function(){ wk = addDays(wk, 7); loadWeek(); });
+
+  function loadWeek(){
+    var days = [], keys = [];
+    for (var i = 0; i < 7; i++){ var d = addDays(wk, i); days.push(d); keys.push('d_' + d, 'w_' + d); }
+    var a = fromIso(days[0]), z = fromIso(days[6]);
+    $('wtitle').textContent = a.getMonth() === z.getMonth()
+      ? a.getDate() + '–' + z.getDate() + ' ' + MON[z.getMonth()]
+      : a.getDate() + ' ' + MON[a.getMonth()].slice(0, 3) + ' – ' + z.getDate() + ' ' + MON[z.getMonth()].slice(0, 3);
+    $('wbody').innerHTML = '<tr class="empty"><td colspan="4">загрузка…</td></tr>';
+    if (draft) draft(true);
+    store.get(keys, function(v){ buildWeek(days, v); });
+  }
+  function buildWeek(days, v){
+    var tot = {n:0, A:0, cost:0, cash:0, p:0, pu:0, pg:0, pe:0, ou:0, og:0, oe:0, rest:0}, unsaved = [], rows = [], lines = [];
+    var title = 'ОТЧЁТ ЗА НЕДЕЛЮ ' + ddmm(days[0]) + '–' + ddmm(days[6]) + '.' + days[6].slice(0, 4);
+    lines.push(title, '');
+    days.forEach(function(day){
+      var dlabel = DOW[fromIso(day).getDay()] + ' ' + ddmm(day);
+      var rec = parse(v['d_' + day]), w = parse(v['w_' + day]);
+      if (rec && valid(rec.s)){
+        var s = rec.s, R = compute(s);
+        if (!R.okBuy) { rows.push('<tr class="empty"><td>' + dlabel + '</td><td colspan="3">—</td></tr>'); return; }
+        var changedAfter = valid(w) && JSON.stringify(clean(w)) !== JSON.stringify(clean(s));
+        tot.n++; tot.A += R.A; tot.cost += R.cost; tot.cash += R.cash; tot.p += R.p; tot.rest += R.rest;
+        tot.pu += R.T.proc.u; tot.pg += R.T.proc.gross; tot.pe += R.T.proc.extra;
+        tot.ou += R.T.off.u; tot.og += R.T.off.gross; tot.oe += R.T.off.extra;
+        var pct = R.cost > 0 ? R.p / R.cost * 100 : 0;
+        rows.push('<tr><td>' + dlabel + (changedAfter ? '<small>есть несохранённые правки</small>' : '') + '</td><td>' + (R.A >= 1e6 ? r2(R.A / 1e6) + ' млн' : nf0.format(R.A)) + '</td>' +
+          '<td class="' + (R.p >= 0 ? 'pos' : 'neg') + '">' + (Math.round(R.p) > 0 ? '+' : '') + minus(nf0.format(Math.round(R.p))) + '</td><td>' + r2(pct) + '</td></tr>');
+        lines.push(dlabel + ': вложено ' + rub(R.A) + ', наличными ' + rub(R.cash) + ', прибыль ' + srub(R.p) + ' (' + r2(pct) + ' %)' +
+          (Math.abs(R.rest) > 0.01 ? ', остаток ' + usd(R.rest) : ''));
+      } else if (valid(w) && compute(w).okBuy){
+        unsaved.push(dlabel);
+        rows.push('<tr class="empty"><td>' + dlabel + '<small>не сохранён</small></td><td colspan="3">не входит в итог</td></tr>');
+        lines.push(dlabel + ': не сохранён');
+      } else {
+        rows.push('<tr class="empty"><td>' + dlabel + '</td><td colspan="3">—</td></tr>');
+      }
+    });
+    $('wbody').innerHTML = rows.join('');
+    var tp = tot.cost > 0 ? tot.p / tot.cost * 100 : 0;
+    var kv = [
+      ['s', 'Дней с работой', String(tot.n)],
+      ['', 'Вложено', rub(tot.A)],
+      ['s', 'Получено наличными', rub(tot.cash)],
+      ['s', 'Прибыль', srub(tot.p) + (tot.n ? ' · ' + r2(tp) + ' %' : '')],
+      ['', 'Площадке', usd(tot.pu)],
+      ['in', 'на сумму', rub(tot.pg)],
+      ['in', 'доплата', srub(tot.pe)],
+      ['', 'В офисе биржи', usd(tot.ou)],
+      ['in', 'на сумму', rub(tot.og)],
+      ['in', 'комиссия', tot.oe > 0 ? '−' + rub(tot.oe) : rub(0)],
+      ['', 'Остаток USDT', r2(tot.rest)]
+    ];
+    $('wtotals').innerHTML = kv.map(function(x){ return '<div class="' + x[0] + '"><dt>' + x[1] + '</dt><dd>' + x[2] + '</dd></div>'; }).join('');
+    lines.push('', 'ИТОГО (сохранённых дней: ' + tot.n + ')');
+    lines.push('Вложено: ' + rub(tot.A));
+    lines.push('Получено наличными: ' + rub(tot.cash));
+    lines.push('Прибыль: ' + srub(tot.p) + ' (' + r2(tp) + ' %)');
+    lines.push('Площадке: ' + usd(tot.pu) + ' → ' + rub(tot.pg) + ', доплата ' + srub(tot.pe));
+    lines.push('Офис биржи: ' + usd(tot.ou) + ' → ' + rub(tot.og) + ', комиссия ' + (tot.oe > 0 ? '−' : '') + rub(tot.oe));
+    if (Math.abs(tot.rest) > 0.01) lines.push('Остаток: ' + usd(tot.rest));
+    if (unsaved.length) lines.push('Не сохранены: ' + unsaved.join(', '));
+    $('wtext').textContent = lines.join('\n');
+  }
+
+  /* ---------- копировать / отправить ---------- */
+  function status(id, msg, ok){
+    $(id).textContent = msg;
     if (ok && tg && tg.HapticFeedback){ try { tg.HapticFeedback.notificationOccurred('success'); } catch(e) {} }
-    setTimeout(function(){ $('status').textContent = ''; }, 2500);
+    setTimeout(function(){ $(id).textContent = ''; }, 2500);
   }
-  $('copy').addEventListener('click', function(){
-    var text = $('steps').textContent;
-    var fallback = function(){
-      var rg = document.createRange(); rg.selectNodeContents($('steps'));
-      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rg);
-      try { document.execCommand('copy') ? status('Скопировано', true) : status('Текст выделен — скопируйте вручную'); }
-      catch(e){ status('Текст выделен — скопируйте вручную'); }
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(text).then(function(){ status('Скопировано', true); }, fallback);
-    } else fallback();
+  document.querySelectorAll('[data-copy]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var src = btn.dataset.copy, text = $(src).textContent, sid = 'status-' + src;
+      var fallback = function(){
+        var rg = document.createRange(); rg.selectNodeContents($(src));
+        var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rg);
+        try { document.execCommand('copy') ? status(sid, 'Скопировано', true) : status(sid, 'Текст выделен — скопируйте вручную'); }
+        catch(e){ status(sid, 'Текст выделен — скопируйте вручную'); }
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(function(){ status(sid, 'Скопировано', true); }, fallback);
+      } else fallback();
+    });
   });
-  $('share').addEventListener('click', function(){
-    var url = 'https://t.me/share/url?url=' + encodeURIComponent($('steps').textContent);
-    if (inTg && tg.openTelegramLink){ try { tg.openTelegramLink(url); return; } catch(e) {} }
-    window.open(url, '_blank');
+  document.querySelectorAll('[data-share]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var url = 'https://t.me/share/url?url=' + encodeURIComponent($(btn.dataset.share).textContent);
+      if (inTg && tg.openTelegramLink){ try { tg.openTelegramLink(url); return; } catch(e) {} }
+      window.open(url, '_blank');
+    });
   });
 
-  $('diag').textContent = 'версия 3 · 20.10 · ' + (inTg ? 'Telegram ' + (tg.version || '?') + ' · ' + (tg.platform || '?') : 'вне Telegram') +
-    ' · цифры: ' + (cloud ? 'общие для всех устройств' : 'только на этом устройстве');
+  $('diag').textContent = 'версия ' + (window.APP_V || '?') + ' · ' + (inTg ? 'Telegram ' + (tg.version || '?') + ' · ' + (tg.platform || '?') : 'вне Telegram') +
+    ' · данные: ' + (cloud ? 'общие для всех устройств' : 'только на этом устройстве');
 
-  function start(){
-    ['A','buy','fee','n'].forEach(function(k){ $(k).value = S[k]; });
-    renderOps('proc'); renderOps('off'); markChips(); calc();
-  }
-  try { apply(localStorage.getItem(KEY)); } catch(e) {}
-  bindTop('A','A'); bindTop('buy','buy'); bindTop('fee','fee'); bindTop('n','n');
-  start();
-  if (cloud){
-    try { cloud.getItem(KEY, function(err, val){ if (!err && val && apply(val)) start(); }); } catch(e) {}
-  }
+  /* ---------- старт: перенос цифр из прошлой версии в сегодняшний день ---------- */
+  $('date').value = cur; dayState();
+  store.get(['w_' + cur, 'd_' + cur, 'krug_calc_v2'], function(v){
+    savedRec = parse(v['d_' + cur]); if (savedRec && !valid(savedRec.s)) savedRec = null;
+    var w = parse(v['w_' + cur]), old = parse(v['krug_calc_v2']);
+    if (valid(w)) S = clean(w);
+    else if (savedRec) S = clean(clone(savedRec.s));
+    else if (valid(old)) { S = clean(old); store.set('w_' + cur, JSON.stringify(S)); }
+    else S = clean(clone(DEF));
+    if (valid(old)) store.remove('krug_calc_v2');
+    ready = true; showDay();
+  });
 })();
 </script>
 </body>
