@@ -7,10 +7,10 @@
 <title>Калькулятор круга</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-/* Мини-приложение Telegram: один столбец под телефон. Цвета следуют теме Telegram (светлая/тёмная). Без внешних шрифтов */
+/* Мини-приложение Telegram: покупка → два канала продажи (площадка, офис биржи) → итог. Один столбец, цвета по теме Telegram, без внешних шрифтов */
 :root{
-  --bg:#F1F4F2; --surface:#FFFFFF; --sunken:#E6ECE9; --ink:#13201B; --muted:#55645E; --line:#D2DBD7;
-  --accent:#16795A; --on-accent:#FFFFFF; --bad:#B4381F; --bad-soft:#F6E0D9;
+  --bg:#F1F4F2; --surface:#FFFFFF; --sunken:#E9EEEB; --ink:#13201B; --muted:#55645E; --line:#D2DBD7;
+  --accent:#16795A; --accent-soft:#DCEEE6; --on-accent:#FFFFFF; --bad:#B4381F; --bad-soft:#F6E0D9; --warn:#93600F; --warn-soft:#F4E8CF;
   --font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Consolas,monospace;
   color-scheme:light;
@@ -18,12 +18,12 @@
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#0D1412; --surface:#141E1B; --sunken:#1B2723; --ink:#E2ECE8; --muted:#93A39D; --line:#293732;
-    --accent:#46C79A; --on-accent:#07130F; --bad:#F08268; --bad-soft:#3A1F19; color-scheme:dark;
+    --accent:#46C79A; --accent-soft:#15342A; --on-accent:#07130F; --bad:#F08268; --bad-soft:#3A1F19; --warn:#E2AA56; --warn-soft:#33291A; color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --bg:#0D1412; --surface:#141E1B; --sunken:#1B2723; --ink:#E2ECE8; --muted:#93A39D; --line:#293732;
-  --accent:#46C79A; --on-accent:#07130F; --bad:#F08268; --bad-soft:#3A1F19; color-scheme:dark;
+  --accent:#46C79A; --accent-soft:#15342A; --on-accent:#07130F; --bad:#F08268; --bad-soft:#3A1F19; --warn:#E2AA56; --warn-soft:#33291A; color-scheme:dark;
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink)}
@@ -32,35 +32,52 @@ body{font:16px/1.45 var(--font);-webkit-text-size-adjust:100%}
 h1{font-size:21px;line-height:1.2;margin:2px 0 0;font-weight:700}
 .sub{margin:2px 0 0;color:var(--muted);font-size:14px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:12px;min-width:0}
+.card-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.card-h h2{font-size:16px;margin:0;font-weight:700}
+.card-h span{font-size:13px;color:var(--muted)}
 .chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
-.chips button,.seg button{font:inherit;font-size:14.5px;font-weight:600;padding:9px 4px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);white-space:nowrap;cursor:pointer}
-.chips button[aria-pressed="true"],.seg button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
-.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.seg button{border-radius:10px;padding:10px 6px}
+.chips button{font:inherit;font-size:14px;font-weight:600;padding:8px 4px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);white-space:nowrap;cursor:pointer}
+.chips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .f{display:grid;gap:4px;min-width:0}
-.f label,.lbl{font-size:12.5px;font-weight:600;color:var(--muted)}
-.f input,.f select{width:100%;font:600 19px/1.2 var(--mono);padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-variant-numeric:tabular-nums;min-width:0}
-.f select{font:600 16px/1.2 var(--font)}
+.f label,.lab{font-size:12.5px;font-weight:600;color:var(--muted)}
+.lab{display:flex;justify-content:space-between;align-items:center;gap:8px}
+input,select{width:100%;font:600 18px/1.2 var(--mono);padding:10px 11px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-variant-numeric:tabular-nums;min-width:0}
+select{font:600 15px/1.2 var(--font);padding:10px 6px}
 input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.unit{display:grid;grid-template-columns:minmax(0,1fr) 72px;gap:8px}
+.unit{display:grid;grid-template-columns:minmax(0,1fr) 84px;gap:8px}
+.got{margin:0;font-size:14.5px;padding:10px 12px;border-radius:10px;background:var(--accent-soft)}
+.got b{font-family:var(--mono)}
+.ops{display:grid;gap:10px}
+.op{background:var(--sunken);border-radius:12px;padding:12px;display:grid;gap:10px}
+.op input,.op select{background:var(--surface)}
+.op-top{display:flex;justify-content:space-between;align-items:center;font-size:13.5px;font-weight:700}
+.x{font:inherit;font-size:13px;font-weight:600;border:0;background:transparent;color:var(--muted);padding:4px 6px;cursor:pointer}
+.link{font:inherit;font-size:12.5px;font-weight:700;border:0;background:transparent;color:var(--accent);padding:0;cursor:pointer}
+.op-sum{margin:0;font:13.5px/1.5 var(--mono);color:var(--muted)}
+.op-sum b{color:var(--ink)}
+.add{font:inherit;font-weight:700;font-size:14.5px;padding:10px;border-radius:10px;border:1px dashed var(--line);background:transparent;color:var(--accent);cursor:pointer}
+.bal{margin:0;font-size:14px;font-weight:600;padding:10px 12px;border-radius:10px}
+.bal.ok{background:var(--accent-soft);color:var(--accent)}
+.bal.warn{background:var(--warn-soft);color:var(--warn)}
+.bal.bad{background:var(--bad-soft);color:var(--bad)}
+.bal b{font-family:var(--mono)}
 .cap{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .big{font-size:clamp(32px,10vw,42px);font-weight:800;line-height:1.05;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .big.pos{color:var(--accent)} .big.neg{color:var(--bad)}
 .pct{font:700 15px var(--mono);margin-top:3px}
 .kv{margin:0;display:grid}
-.kv div{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px}
+.kv div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14.5px}
 .kv div:last-child{border-bottom:0}
 .kv dt{color:var(--muted)}
-.kv dd{margin:0;font:600 15px var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.kv dd{margin:0;font:600 14.5px var(--mono);text-align:right;font-variant-numeric:tabular-nums}
 .kv .s dt{color:var(--ink);font-weight:600}
-.note{margin:0;font-size:14px;padding:10px 12px;border-radius:10px;background:var(--sunken)}
-.note b{font-family:var(--mono)}
-pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13.5px/1.6 var(--mono);background:var(--sunken);border-radius:10px;padding:12px}
+.kv .in dt{padding-left:12px}
+pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono);background:var(--sunken);border-radius:10px;padding:12px}
 .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .btns button{font:inherit;font-weight:700;font-size:15px;padding:12px 8px;border-radius:10px;border:0;background:var(--accent);color:var(--on-accent);cursor:pointer}
 .btns button.ghost{background:var(--sunken);color:var(--ink)}
-.status{min-height:1.2em;font-size:13.5px;color:var(--muted);text-align:center}
+.status{min-height:1.2em;margin:0;font-size:13.5px;color:var(--muted);text-align:center}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -68,56 +85,64 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13.5px/1.6 var(--mo
 <main class="app">
   <header>
     <h1>Калькулятор круга</h1>
-    <p class="sub">Наличные → касса → покупка USDT → продажа</p>
+    <p class="sub">Покупка USDT → пополнение площадки и продажа в офисе биржи</p>
   </header>
 
-  <form class="card" id="f" autocomplete="off">
+  <section class="card" aria-label="Покупка">
+    <div class="card-h"><h2>Покупка</h2><span>наличные через кассу</span></div>
     <div class="chips" role="group" aria-label="Сумма круга">
-      <button type="button" data-a="300000">300 тыс.</button>
       <button type="button" data-a="1000000">1 млн</button>
+      <button type="button" data-a="2000000">2 млн</button>
       <button type="button" data-a="5000000">5 млн</button>
       <button type="button" data-a="10000000">10 млн</button>
     </div>
-    <div class="f"><label for="amount">Сумма круга, ₽</label><input id="amount" inputmode="numeric" value="300 000"></div>
+    <div class="f"><label for="A">Сумма круга, ₽</label><input id="A" inputmode="decimal"></div>
     <div class="row">
-      <div class="f"><label for="buy">Курс покупки</label><input id="buy" inputmode="decimal" value="85,08"></div>
-      <div class="f"><label for="sell">Курс продажи</label><input id="sell" inputmode="decimal" value="87,27"></div>
+      <div class="f"><label for="buy">Курс покупки</label><input id="buy" inputmode="decimal"></div>
+      <div class="f"><label for="fee">Комиссия кассы, ₽</label><input id="fee" inputmode="decimal"></div>
     </div>
-    <div class="f">
-      <span class="lbl">Кому продаём</span>
-      <div class="seg" role="group" aria-label="Кому продаём">
-        <button type="button" data-ch="traders" aria-pressed="true">Трейдерам</button>
-        <button type="button" data-ch="office" aria-pressed="false">Офис биржи</button>
-      </div>
-    </div>
-    <div class="f" id="box-traders"><label for="tc">Доплата трейдеров</label>
-      <div class="unit"><input id="tc" inputmode="decimal" value="1 500"><select id="tcu" aria-label="Единица доплаты"><option value="rub" selected>₽</option><option value="pct">%</option></select></div>
-    </div>
-    <div class="row" id="box-office" hidden>
-      <div class="f"><label for="exf">Комиссия биржи, %</label><input id="exf" inputmode="decimal" value="0,1"></div>
-      <div class="f"><label for="outf">Выдача наличных, %</label><input id="outf" inputmode="decimal" value="0,3"></div>
-    </div>
-    <div class="row">
-      <div class="f"><label for="fee">Комиссия кассы, ₽</label><input id="fee" inputmode="numeric" value="5 000"></div>
-      <div class="f"><label for="n">Кругов в неделю</label><input id="n" inputmode="numeric" value="5"></div>
-    </div>
-  </form>
+    <p class="got" id="got">—</p>
+  </section>
+
+  <section class="card" aria-label="Пополнение площадки">
+    <div class="card-h"><h2>Пополнение площадки</h2><span>ваш % за пополнение — в плюс</span></div>
+    <div class="ops" id="ops-proc"></div>
+    <button type="button" class="add" data-add="proc">+ Добавить пополнение</button>
+  </section>
+
+  <section class="card" aria-label="Продажа в офисе биржи">
+    <div class="card-h"><h2>Продажа в офисе биржи</h2><span>комиссия за вывод — в минус</span></div>
+    <div class="ops" id="ops-off"></div>
+    <button type="button" class="add" data-add="off">+ Добавить продажу</button>
+  </section>
+
+  <p class="bal" id="bal" aria-live="polite">—</p>
 
   <section class="card" aria-live="polite">
     <div>
-      <span class="cap">Прибыль за круг</span>
+      <span class="cap" id="r-cap">Прибыль за круг</span>
       <div class="big" id="r-profit">—</div>
       <div class="pct" id="r-pct">—</div>
     </div>
     <dl class="kv">
-      <div><dt>Получено USDT</dt><dd id="r-usdt">—</dd></div>
-      <div><dt>Наличные на выходе</dt><dd id="r-cash">—</dd></div>
-      <div class="s"><dt id="r-week-l">За неделю</dt><dd id="r-week">—</dd></div>
-      <div class="s"><dt>За месяц</dt><dd id="r-month">—</dd></div>
-      <div><dt>За год</dt><dd id="r-year">—</dd></div>
+      <div><dt>Куплено</dt><dd id="r-bought">—</dd></div>
+      <div><dt>Продано</dt><dd id="r-sold">—</dd></div>
+      <div class="in"><dt>площадке</dt><dd id="r-sold-p">—</dd></div>
+      <div class="in"><dt>в офисе биржи</dt><dd id="r-sold-o">—</dd></div>
+      <div><dt>Остаток</dt><dd id="r-rest">—</dd></div>
+      <div class="s"><dt>Получено наличными</dt><dd id="r-cash">—</dd></div>
+      <div class="in"><dt>доплата площадки</dt><dd id="r-bonus">—</dd></div>
+      <div class="in"><dt>комиссия биржи</dt><dd id="r-comm">—</dd></div>
+      <div><dt>Себестоимость 1 USDT</dt><dd id="r-unit">—</dd></div>
+      <div><dt>Средняя продажа 1 USDT</dt><dd id="r-avg">—</dd></div>
     </dl>
-    <p class="note" id="r-be">—</p>
-    <p class="note" id="r-cashflow">—</p>
+    <div class="row">
+      <div class="f"><label for="n">Кругов в неделю</label><input id="n" inputmode="decimal"></div>
+      <dl class="kv" style="align-self:end">
+        <div class="s"><dt>Неделя</dt><dd id="r-week">—</dd></div>
+        <div class="s"><dt>Месяц</dt><dd id="r-month">—</dd></div>
+      </dl>
+    </div>
   </section>
 
   <section class="card">
@@ -149,135 +174,204 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13.5px/1.6 var(--mo
   function rub(v){ return minus(nf0.format(Math.round(v))) + ' ₽'; }
   function srub(v){ return (Math.round(v) > 0 ? '+' : '') + rub(v); }
   function r2(v){ return minus(nf2.format(v)); }
-  function num(s){ var v = parseFloat(String(s).replace(/[\s  ]/g,'').replace(',','.')); return isFinite(v) ? v : NaN; }
+  function usd(v){ return r2(v) + ' USDT'; }
+  function num(s){ var v = parseFloat(String(s == null ? '' : s).replace(/[\s  ]/g,'').replace(',','.')); return isFinite(v) ? v : NaN; }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
   function plural(v, a, b, c){ var m10 = v % 10, m100 = v % 100;
     if (m10 === 1 && m100 !== 11) return a; if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return b; return c; }
 
-  var IDS = ['amount','buy','sell','tc','tcu','exf','outf','fee','n'];
-  var F = {}; IDS.forEach(function(id){ F[id] = $(id); });
-  var state = {ch:'traders'};
-  var KEY = 'krug_calc_v1';
+  var KEY = 'krug_calc_v2';
+  var DEF = {A:'2 000 000', buy:'85,08', fee:'5 000', n:'5',
+    proc:[{amt:'500 000', unit:'rub', rate:'87,27', pct:'0,75'}],
+    off:[{amt:'1 500 000', unit:'rub', rate:'87,00', pct:'0,4'}]};
+  var S = JSON.parse(JSON.stringify(DEF));
+  var NAMES = {proc:['Пополнение','Доплата, %'], off:['Продажа','Комиссия, %']};
 
-  function snapshot(){ var o = {ch: state.ch}; IDS.forEach(function(id){ o[id] = F[id].value; }); return JSON.stringify(o); }
   function apply(json){
     try {
-      var o = JSON.parse(json || 'null'); if (!o) return false;
-      IDS.forEach(function(id){ if (o[id] != null) F[id].value = o[id]; });
-      if (o.ch === 'traders' || o.ch === 'office') state.ch = o.ch;
-      return true;
+      var o = JSON.parse(json || 'null'); if (!o || !Array.isArray(o.proc) || !Array.isArray(o.off)) return false;
+      S = o; return true;
     } catch(e) { return false; }
   }
   var timer = null;
   function save(){
     clearTimeout(timer);
     timer = setTimeout(function(){
-      var s = snapshot();
+      var s = JSON.stringify(S);
       try { localStorage.setItem(KEY, s); } catch(e) {}
       if (cloud){ try { cloud.setItem(KEY, s, function(){}); } catch(e) {} }
     }, 400);
   }
 
-  function setChannel(ch){
-    state.ch = ch;
-    document.querySelectorAll('[data-ch]').forEach(function(b){ b.setAttribute('aria-pressed', b.dataset.ch === ch ? 'true' : 'false'); });
-    $('box-traders').hidden = ch !== 'traders';
-    $('box-office').hidden = ch !== 'office';
+  /* ---------- строки каналов ---------- */
+  function renderOps(kind){
+    var nm = NAMES[kind];
+    $('ops-' + kind).innerHTML = S[kind].map(function(r, i){
+      var id = kind + '-' + i;
+      return '<div class="op" data-kind="' + kind + '" data-i="' + i + '">' +
+        '<div class="op-top"><span>' + nm[0] + ' ' + (i + 1) + '</span><button type="button" class="x" data-act="del" aria-label="Удалить строку">✕ убрать</button></div>' +
+        '<div class="f"><div class="lab"><label for="' + id + '-amt">Сумма</label><button type="button" class="link" data-act="rest">весь остаток</button></div>' +
+          '<div class="unit"><input id="' + id + '-amt" data-k="amt" inputmode="decimal" value="' + esc(r.amt) + '">' +
+          '<select data-k="unit" aria-label="Единица суммы"><option value="rub"' + (r.unit === 'rub' ? ' selected' : '') + '>₽</option><option value="usdt"' + (r.unit === 'usdt' ? ' selected' : '') + '>USDT</option></select></div></div>' +
+        '<div class="row"><div class="f"><label for="' + id + '-rate">Курс</label><input id="' + id + '-rate" data-k="rate" inputmode="decimal" value="' + esc(r.rate) + '"></div>' +
+          '<div class="f"><label for="' + id + '-pct">' + nm[1] + '</label><input id="' + id + '-pct" data-k="pct" inputmode="decimal" value="' + esc(r.pct) + '"></div></div>' +
+        '<p class="op-sum" id="' + id + '-sum">—</p>' +
+      '</div>';
+    }).join('');
+  }
+  function rowCalc(kind, r){
+    var amt = num(r.amt), rate = num(r.rate), pct = num(r.pct);
+    if (!(rate > 0) || !(amt >= 0) || !(pct >= 0)) return null;
+    var u = r.unit === 'usdt' ? amt : amt / rate;
+    var gross = u * rate, extra = gross * pct / 100;
+    return {u:u, gross:gross, extra:extra, cash: kind === 'proc' ? gross + extra : gross - extra, rate:rate, pct:pct};
+  }
+
+  /* ---------- расчёт ---------- */
+  var last = null;
+  function calc(){
+    var A = num(S.A), b = num(S.buy), fee = num(S.fee), n = num(S.n);
+    var okBuy = A > 0 && b > 0 && fee >= 0 && A > fee;
+    var bought = okBuy ? (A - fee) / b : 0;
+    $('got').innerHTML = okBuy ? 'Куплено: <b>' + usd(bought) + '</b> · себестоимость <b>' + r2(A / bought) + '</b> ₽ за 1 USDT' : 'Проверьте сумму, курс и комиссию кассы.';
+
+    var T = {proc:{u:0,gross:0,extra:0,cash:0,rows:[]}, off:{u:0,gross:0,extra:0,cash:0,rows:[]}};
+    ['proc','off'].forEach(function(kind){
+      S[kind].forEach(function(r, i){
+        var c = rowCalc(kind, r), el = $(kind + '-' + i + '-sum');
+        T[kind].rows.push(c);
+        if (!c){ if (el) el.textContent = 'Заполните сумму и курс'; return; }
+        T[kind].u += c.u; T[kind].gross += c.gross; T[kind].extra += c.extra; T[kind].cash += c.cash;
+        if (el) el.innerHTML = usd(c.u) + ' × ' + r2(c.rate) + ' = ' + rub(c.gross) + '<br>' +
+          (kind === 'proc' ? 'доплата ' + r2(c.pct) + ' %: +' + rub(c.extra) : 'комиссия ' + r2(c.pct) + ' %: −' + rub(c.extra)) +
+          ' → <b>' + rub(c.cash) + '</b>';
+      });
+    });
+    var sold = T.proc.u + T.off.u, rest = bought - sold, cash = T.proc.cash + T.off.cash;
+    var bal = $('bal');
+    if (!okBuy){ bal.className = 'bal warn'; bal.textContent = 'Сначала заполните покупку.'; }
+    else if (rest > 0.01){ bal.className = 'bal warn'; bal.innerHTML = 'Не распределено: <b>' + usd(rest) + '</b> (≈ ' + rub(rest * A / bought) + ' по себестоимости)'; }
+    else if (rest < -0.01){ bal.className = 'bal bad'; bal.innerHTML = 'Продано больше, чем куплено, на <b>' + usd(-rest) + '</b>'; }
+    else { bal.className = 'bal ok'; bal.textContent = 'Все USDT распределены'; }
+
+    var cost = okBuy ? A * sold / bought : 0;
+    var p = cash - cost;
+    var full = okBuy && Math.abs(rest) <= 0.01;
+    $('r-cap').textContent = full || !okBuy ? 'Прибыль за круг' : 'Прибыль по проданной части';
+    if (okBuy && sold > 0){
+      $('r-profit').textContent = srub(p);
+      $('r-profit').className = 'big ' + (p >= 0 ? 'pos' : 'neg');
+      $('r-pct').textContent = (p > 0 ? '+' : '') + r2(p / cost * 100) + ' % к вложенным';
+    } else {
+      $('r-profit').textContent = '—'; $('r-profit').className = 'big'; $('r-pct').textContent = '—';
+    }
+    $('r-bought').textContent = okBuy ? usd(bought) : '—';
+    $('r-sold').textContent = usd(sold);
+    $('r-sold-p').textContent = usd(T.proc.u);
+    $('r-sold-o').textContent = usd(T.off.u);
+    $('r-rest').textContent = okBuy ? usd(rest) : '—';
+    $('r-cash').textContent = rub(cash);
+    $('r-bonus').textContent = srub(T.proc.extra);
+    $('r-comm').textContent = T.off.extra > 0 ? '−' + rub(T.off.extra) : rub(0);
+    $('r-unit').textContent = okBuy ? r2(A / bought) + ' ₽' : '—';
+    $('r-avg').textContent = sold > 0 ? r2(cash / sold) + ' ₽' : '—';
+    var ok = okBuy && sold > 0 && n >= 0;
+    $('r-week').textContent = ok ? srub(p * n) : '—';
+    $('r-month').textContent = ok ? srub(p * n * 52 / 12) : '—';
+
+    /* шаги */
+    if (!okBuy){ $('steps').textContent = '—'; return; }
+    var L = [];
+    L.push('ПОКУПКА');
+    L.push('Касса: ' + rub(A) + ' − ' + rub(fee) + ' = ' + rub(A - fee));
+    L.push('USDT: ' + nf0.format(Math.round(A - fee)) + ' / ' + r2(b) + ' = ' + usd(bought));
+    var k = 0;
+    ['proc','off'].forEach(function(kind){
+      S[kind].forEach(function(r, i){
+        var c = T[kind].rows[i]; if (!c || c.u === 0) return;
+        if (!k) { L.push(''); L.push('ПРОДАЖА'); }
+        k++;
+        L.push(k + ') ' + (kind === 'proc' ? 'Площадка' : 'Офис биржи') + ': ' + usd(c.u) + ' × ' + r2(c.rate) + ' = ' + rub(c.gross));
+        L.push('   ' + (kind === 'proc' ? 'доплата ' + r2(c.pct) + ' %: +' + rub(c.extra) : 'комиссия ' + r2(c.pct) + ' %: −' + rub(c.extra)) + ' → ' + rub(c.cash));
+      });
+    });
+    L.push('');
+    L.push('ИТОГ');
+    L.push('Продано: ' + usd(sold) + (Math.abs(rest) > 0.01 ? ', остаток ' + usd(rest) : ''));
+    L.push('Наличными: ' + rub(cash));
+    if (full) L.push('Прибыль: ' + rub(cash) + ' − ' + rub(A) + ' = ' + srub(p) + ' (' + r2(p / A * 100) + ' %)');
+    else if (sold > 0) L.push('Себестоимость проданного: ' + rub(cost) + '\nПрибыль по проданному: ' + srub(p) + ' (' + r2(p / cost * 100) + ' %)');
+    if (ok) L.push('За неделю (' + nf0.format(n) + ' ' + plural(Math.round(n), 'круг', 'круга', 'кругов') + '): ' + srub(p * n));
+    $('steps').textContent = L.join('\n');
+    last = {bought:bought, sold:sold, rest:rest};
+  }
+
+  /* ---------- события ---------- */
+  function bindTop(id, key){
+    $(id).value = S[key];
+    $(id).addEventListener('input', function(){ S[key] = $(id).value; if (key === 'A') markChips(); calc(); save(); });
+    $(id).addEventListener('blur', function(){ var v = num($(id).value); if (isFinite(v) && (key === 'A' || key === 'fee')){ $(id).value = S[key] = nf0.format(v); } });
   }
   function markChips(){
-    var A = num(F.amount.value);
+    var A = num(S.A);
     document.querySelectorAll('[data-a]').forEach(function(b){ b.setAttribute('aria-pressed', num(b.dataset.a) === A ? 'true' : 'false'); });
   }
-
-  function calc(){
-    var A = num(F.amount.value), b = num(F.buy.value), s = num(F.sell.value), fee = num(F.fee.value), n = num(F.n.value);
-    var tc = num(F.tc.value), pctUnit = F.tcu.value === 'pct', ex = num(F.exf.value) / 100, out = num(F.outf.value) / 100;
-    var trad = state.ch === 'traders';
-    var ok = [A,b,s,fee,n].every(isFinite) && A > fee && fee >= 0 && b > 0 && s > 0 && n >= 0 &&
-             (trad ? isFinite(tc) && tc >= 0 : isFinite(ex) && isFinite(out) && ex >= 0 && out >= 0 && ex < 1 && out < 1);
-    if (!ok){
-      ['r-profit','r-pct','r-usdt','r-cash','r-week','r-month','r-year'].forEach(function(id){ $(id).textContent = '—'; });
-      $('r-profit').className = 'big';
-      $('r-be').textContent = 'Проверьте числа: сумма больше комиссии кассы, курсы больше нуля.';
-      $('r-cashflow').textContent = '—'; $('steps').textContent = '—';
-      return;
-    }
-    var net = A - fee, usdt = net / b, sale = usdt * s, cash, bonus = 0, exRub = 0, outRub = 0, be;
-    if (trad){
-      bonus = pctUnit ? sale * tc / 100 : tc;
-      cash = sale + bonus;
-      be = pctUnit ? A * b / (net * (1 + tc / 100)) : (A - bonus) * b / net;
-    } else {
-      exRub = sale * ex; outRub = (sale - exRub) * out;
-      cash = sale - exRub - outRub;
-      be = A * b / (net * (1 - ex) * (1 - out));
-    }
-    var p = cash - A, week = p * n, month = week * 52 / 12, year = week * 52;
-    var circles = nf0.format(n) + ' ' + plural(Math.round(n), 'круг', 'круга', 'кругов');
-
-    $('r-profit').textContent = srub(p);
-    $('r-profit').className = 'big ' + (p >= 0 ? 'pos' : 'neg');
-    $('r-pct').textContent = (p > 0 ? '+' : '') + r2(p / A * 100) + ' % за круг';
-    $('r-usdt').textContent = r2(usdt) + ' USDT';
-    $('r-cash').textContent = rub(cash);
-    $('r-week-l').textContent = 'За неделю, ' + circles;
-    $('r-week').textContent = srub(week);
-    $('r-month').textContent = srub(month);
-    $('r-year').textContent = srub(year);
-    $('r-be').innerHTML = 'В ноль при продаже по <b>' + r2(be) + '</b>. Дешевле — круг в минус.';
-    $('r-cashflow').innerHTML = 'Через кассу: <b>' + rub(A * n) + '</b> в неделю, <b>' + rub(A * n * 52 / 12) + '</b> в месяц.';
-
-    var L = [];
-    L.push('Касса: ' + rub(A) + ' − ' + rub(fee) + ' = ' + rub(net));
-    L.push('USDT: ' + nf0.format(Math.round(net)) + ' / ' + r2(b) + ' = ' + r2(usdt) + ' USDT');
-    if (trad){
-      L.push('Продажа трейдерам: ' + r2(usdt) + ' × ' + r2(s) + ' = ' + rub(sale));
-      L.push('Доплата трейдеров: +' + rub(bonus) + ' (' + r2(pctUnit ? tc : bonus / sale * 100) + ' %)');
-    } else {
-      L.push('Продажа через офис: ' + r2(usdt) + ' × ' + r2(s) + ' = ' + rub(sale));
-      L.push('Комиссия биржи ' + r2(ex * 100) + ' %: −' + rub(exRub));
-      L.push('Выдача наличных ' + r2(out * 100) + ' %: −' + rub(outRub));
-    }
-    L.push('Итого наличными: ' + rub(cash));
-    L.push('Прибыль: ' + rub(cash) + ' − ' + rub(A) + ' = ' + srub(p) + ' (' + r2(p / A * 100) + ' %)');
-    L.push('За неделю (' + circles + '): ' + srub(week));
-    L.push('За месяц: ' + srub(month));
-    $('steps').textContent = L.join('\n');
-  }
+  document.querySelectorAll('[data-a]').forEach(function(btn){
+    btn.addEventListener('click', function(){ S.A = nf0.format(num(btn.dataset.a)); $('A').value = S.A; markChips(); calc(); save(); });
+  });
+  ['proc','off'].forEach(function(kind){
+    var box = $('ops-' + kind);
+    box.addEventListener('input', function(e){
+      var t = e.target, op = t.closest('.op'); if (!op || !t.dataset.k || t.tagName === 'SELECT') return;
+      S[kind][+op.dataset.i][t.dataset.k] = t.value; calc(); save();
+    });
+    box.addEventListener('change', function(e){
+      var t = e.target, op = t.closest('.op'); if (!op || t.dataset.k !== 'unit') return;
+      var r = S[kind][+op.dataset.i], c = rowCalc(kind, r);
+      if (c){ r.amt = t.value === 'usdt' ? nf2.format(c.u) : nf0.format(Math.round(c.u * c.rate)); }
+      r.unit = t.value;
+      op.querySelector('[data-k="amt"]').value = r.amt;
+      calc(); save();
+    });
+    box.addEventListener('focusout', function(e){
+      var t = e.target, op = t.closest('.op'); if (!op || t.dataset.k !== 'amt') return;
+      var r = S[kind][+op.dataset.i], v = num(t.value);
+      if (isFinite(v)){ r.amt = r.unit === 'usdt' ? nf2.format(v) : nf0.format(v); t.value = r.amt; save(); }
+    });
+    box.addEventListener('click', function(e){
+      var t = e.target.closest('button'); if (!t) return;
+      var op = t.closest('.op'), i = +op.dataset.i, r = S[kind][i];
+      if (t.dataset.act === 'del'){ S[kind].splice(i, 1); renderOps(kind); calc(); save(); }
+      if (t.dataset.act === 'rest' && last){
+        var c = rowCalc(kind, r), cur = c ? c.u : 0, rate = num(r.rate);
+        var u = Math.max(cur + last.rest, 0);
+        if (r.unit === 'usdt') r.amt = nf2.format(u);
+        else if (rate > 0) r.amt = nf0.format(Math.round(u * rate));
+        else return;
+        op.querySelector('[data-k="amt"]').value = r.amt;
+        calc(); save();
+      }
+    });
+  });
+  document.querySelectorAll('[data-add]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var kind = btn.dataset.add, prev = S[kind][S[kind].length - 1] || DEF[kind][0];
+      S[kind].push({amt:'', unit:prev.unit, rate:prev.rate, pct:prev.pct});
+      renderOps(kind); calc(); save();
+      var inp = $(kind + '-' + (S[kind].length - 1) + '-amt'); if (inp) inp.focus();
+    });
+  });
 
   function status(msg, ok){
     $('status').textContent = msg;
     if (ok && tg && tg.HapticFeedback){ try { tg.HapticFeedback.notificationOccurred('success'); } catch(e) {} }
     setTimeout(function(){ $('status').textContent = ''; }, 2500);
   }
-  function selectSteps(){
-    var r = document.createRange(); r.selectNodeContents($('steps'));
-    var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
-  }
-
-  document.querySelectorAll('[data-a]').forEach(function(btn){
-    btn.addEventListener('click', function(){ F.amount.value = nf0.format(num(btn.dataset.a)); markChips(); calc(); save(); });
-  });
-  document.querySelectorAll('[data-ch]').forEach(function(btn){
-    btn.addEventListener('click', function(){ setChannel(btn.dataset.ch); calc(); save(); });
-  });
-  IDS.forEach(function(id){
-    F[id].addEventListener(F[id].tagName === 'SELECT' ? 'change' : 'input', function(){ if (id === 'amount') markChips(); calc(); save(); });
-  });
-  ['amount','fee'].forEach(function(id){
-    F[id].addEventListener('blur', function(){ var v = num(F[id].value); if (isFinite(v)) F[id].value = nf0.format(v); });
-  });
-  F.tcu.addEventListener('change', function(){
-    var v = num(F.tc.value);
-    if (F.tcu.value === 'pct' && v > 50) F.tc.value = '0,5';
-    if (F.tcu.value === 'rub' && v <= 50) F.tc.value = '1 500';
-    calc(); save();
-  });
-  $('f').addEventListener('submit', function(e){ e.preventDefault(); });
-
   $('copy').addEventListener('click', function(){
     var text = $('steps').textContent;
     var fallback = function(){
-      selectSteps();
+      var rg = document.createRange(); rg.selectNodeContents($('steps'));
+      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rg);
       try { document.execCommand('copy') ? status('Скопировано', true) : status('Текст выделен — скопируйте вручную'); }
       catch(e){ status('Текст выделен — скопируйте вручную'); }
     };
@@ -291,8 +385,12 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13.5px/1.6 var(--mo
     window.open(url, '_blank');
   });
 
-  function start(){ setChannel(state.ch); markChips(); calc(); }
+  function start(){
+    ['A','buy','fee','n'].forEach(function(k){ $(k).value = S[k]; });
+    renderOps('proc'); renderOps('off'); markChips(); calc();
+  }
   try { apply(localStorage.getItem(KEY)); } catch(e) {}
+  bindTop('A','A'); bindTop('buy','buy'); bindTop('fee','fee'); bindTop('n','n');
   start();
   if (cloud){
     try { cloud.getItem(KEY, function(err, val){ if (!err && val && apply(val)) start(); }); } catch(e) {}
