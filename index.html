@@ -78,8 +78,39 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
 .btns button{font:inherit;font-weight:700;font-size:15px;padding:12px 8px;border-radius:10px;border:0;background:var(--accent);color:var(--on-accent);cursor:pointer}
 .btns button.ghost{background:var(--sunken);color:var(--ink)}
 .status{min-height:1.2em;margin:0;font-size:13.5px;color:var(--muted);text-align:center}
+.diag{margin:0;font-size:12px;color:var(--muted);text-align:center}
+.err{position:fixed;left:8px;right:8px;top:8px;z-index:9;padding:10px 12px;border-radius:10px;background:var(--bad-soft);color:var(--bad);font:13px/1.4 var(--mono);white-space:pre-wrap;word-break:break-word}
 [hidden]{display:none!important}
 </style>
+<script>
+/* Показываем любую ошибку прямо на экране: в Telegram на ПК консоли не видно */
+(function(){
+  function show(msg){
+    var el = document.getElementById('err');
+    if (!el){ document.addEventListener('DOMContentLoaded', function(){ show(msg); }); return; }
+    el.hidden = false; el.textContent = 'Ошибка: ' + msg + '\nСделайте скриншот и пришлите.';
+  }
+  window.addEventListener('error', function(e){ show((e.message || 'неизвестно') + (e.lineno ? ' (строка ' + e.lineno + ')' : '')); });
+  window.addEventListener('unhandledrejection', function(e){ show(String(e.reason && e.reason.message || e.reason)); });
+
+  /* Автообновление: Telegram (особенно на ПК) держит старую копию страницы до 10 минут.
+     Сверяем номер версии с version.json и при необходимости перезагружаемся с новым адресом.
+     При выпуске новой версии увеличить APP_V здесь и "v" в version.json. */
+  var APP_V = 3;
+  try {
+    fetch('version.json?t=' + Date.now(), {cache: 'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || !(d.v > APP_V)) return;
+        var q = new URLSearchParams(location.search);
+        if (q.get('v') === String(d.v)) return;
+        q.set('v', d.v);
+        location.replace(location.pathname + '?' + q.toString() + location.hash);
+      })
+      .catch(function(){});
+  } catch(e) {}
+})();
+</script>
 </head>
 <body>
 <main class="app">
@@ -154,7 +185,9 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
     </div>
     <p class="status" id="status" role="status"></p>
   </section>
+  <p class="diag" id="diag">версия 3 · 20.10</p>
 </main>
+<div class="err" id="err" hidden></div>
 
 <script>
 (function(){
@@ -384,6 +417,9 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:13px/1.6 var(--mono
     if (inTg && tg.openTelegramLink){ try { tg.openTelegramLink(url); return; } catch(e) {} }
     window.open(url, '_blank');
   });
+
+  $('diag').textContent = 'версия 3 · 20.10 · ' + (inTg ? 'Telegram ' + (tg.version || '?') + ' · ' + (tg.platform || '?') : 'вне Telegram') +
+    ' · цифры: ' + (cloud ? 'общие для всех устройств' : 'только на этом устройстве');
 
   function start(){
     ['A','buy','fee','n'].forEach(function(k){ $(k).value = S[k]; });
