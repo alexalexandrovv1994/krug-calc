@@ -130,7 +130,7 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
   window.addEventListener('unhandledrejection', function(e){ show(String(e.reason && e.reason.message || e.reason)); });
 
   /* При выпуске новой версии увеличить APP_V здесь и "v" в version.json */
-  var APP_V = 7;
+  var APP_V = 8;
   window.APP_V = APP_V;
   try {
     fetch('version.json?t=' + Date.now(), {cache: 'no-store'})
@@ -191,16 +191,16 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
     <p class="got" id="got">—</p>
   </section>
 
-  <section class="card" aria-label="Пополнение площадки">
-    <div class="card-h"><h2>Пополнение площадки</h2><span>ваш % за пополнение — в плюс</span></div>
-    <div class="ops" id="ops-proc"></div>
-    <button type="button" class="add" data-add="proc">+ Добавить пополнение</button>
-  </section>
-
   <section class="card" aria-label="Продажа в офисе биржи">
     <div class="card-h"><h2>Продажа в офисе биржи</h2><span>комиссия за вывод — в минус</span></div>
     <div class="ops" id="ops-off"></div>
     <button type="button" class="add" data-add="off">+ Добавить продажу</button>
+  </section>
+
+  <section class="card" aria-label="Пополнение площадки">
+    <div class="card-h"><h2>Пополнение площадки</h2><span>ваша доплата — в плюс</span></div>
+    <div class="ops" id="ops-proc"></div>
+    <button type="button" class="add" data-add="proc">+ Добавить пополнение</button>
   </section>
 
   <p class="bal" id="bal" aria-live="polite">—</p>
@@ -214,12 +214,12 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
     <dl class="kv">
       <div><dt>Куплено</dt><dd id="r-bought">—</dd></div>
       <div><dt>Продано</dt><dd id="r-sold">—</dd></div>
-      <div class="in"><dt>площадке</dt><dd id="r-sold-p">—</dd></div>
       <div class="in"><dt>в офисе биржи</dt><dd id="r-sold-o">—</dd></div>
+      <div class="in"><dt>площадке</dt><dd id="r-sold-p">—</dd></div>
       <div><dt>Остаток</dt><dd id="r-rest">—</dd></div>
       <div class="s"><dt>Получено наличными</dt><dd id="r-cash">—</dd></div>
-      <div class="in"><dt>доплата площадки</dt><dd id="r-bonus">—</dd></div>
       <div class="in"><dt>комиссия биржи</dt><dd id="r-comm">—</dd></div>
+      <div class="in"><dt>доплата площадки</dt><dd id="r-bonus">—</dd></div>
     </dl>
   </section>
 
@@ -436,7 +436,7 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
     L.push(ln('Курс покупки', tr(R.b)));
     L.push(ln('Куплено USDT', t2(R.bought)));
     L.push(HR);
-    ['proc','off'].forEach(function(kind){
+    ['off','proc'].forEach(function(kind){
       (c[kind] || []).forEach(function(r, j){
         var x = R.T[kind].rows[j]; if (!x || x.u === 0) return;
         L.push(ln((kind === 'proc' ? 'Площадка по ' : 'Офис по ') + tr(x.rate), t0(x.gross)));
@@ -566,8 +566,8 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
     });
     kv.push(['s', 'Закупы на сумму', rub(DT.A)]);
     kv.push(['s', 'Получено наличными', rub(DT.cash)]);
-    kv.push(['in', 'доплата площадки', srub(DT.pe)]);
     kv.push(['in', 'комиссия биржи', DT.oe > 0 ? '−' + rub(DT.oe) : rub(0)]);
+    kv.push(['in', 'доплата площадки', srub(DT.pe)]);
     if (DT.trx > 0){ kv.push(['', 'Прибыль кругов', srub(DT.p)]); kv.push(['', 'Расходы TRX', '−' + rub(DT.trx)]); }
     if (Math.abs(DT.rest) > 0.01) kv.push(['', 'Остаток USDT', r2(DT.rest)]);
     $('d-kv').innerHTML = kv.map(function(x){ return '<div class="' + x[0] + '"><dt>' + esc(x[1]) + '</dt><dd>' + x[2] + '</dd></div>'; }).join('');
@@ -806,12 +806,12 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
       ['', 'Прибыль кругов', srub(tot.p)],
       ['', 'Расходы TRX', tot.trx > 0 ? '−' + rub(tot.trx) : rub(0)],
       ['s', 'Чистая прибыль', srub(tot.net) + (tot.cost > 0 ? ' · ' + r2(tp) + ' %' : '')],
-      ['', 'Площадке', usd(tot.pu)],
-      ['in', 'на сумму', rub(tot.pg)],
-      ['in', 'доплата', srub(tot.pe)],
       ['', 'В офисе биржи', usd(tot.ou)],
       ['in', 'на сумму', rub(tot.og)],
       ['in', 'комиссия', tot.oe > 0 ? '−' + rub(tot.oe) : rub(0)],
+      ['', 'Площадке', usd(tot.pu)],
+      ['in', 'на сумму', rub(tot.pg)],
+      ['in', 'доплата', srub(tot.pe)],
       ['', 'Остаток USDT', r2(tot.rest)]
     ];
     $('wtotals').innerHTML = kv.map(function(x){ return '<div class="' + x[0] + '"><dt>' + x[1] + '</dt><dd>' + x[2] + '</dd></div>'; }).join('');
@@ -828,12 +828,12 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
     W.push(ln('Чистая прибыль', s0(tot.net)));
     if (tot.cost > 0) W.push(ln('Доходность %', t2(tp)));
     W.push(HR);
-    W.push(ln('Площадке USDT', t2(tot.pu)));
-    W.push(ln('  на сумму', t0(tot.pg)));
-    W.push(ln('  доплата', s0(tot.pe)));
     W.push(ln('Офис USDT', t2(tot.ou)));
     W.push(ln('  на сумму', t0(tot.og)));
     W.push(ln('  комиссия', (tot.oe >= 0.5 ? '-' : '') + t0(tot.oe)));
+    W.push(ln('Площадке USDT', t2(tot.pu)));
+    W.push(ln('  на сумму', t0(tot.pg)));
+    W.push(ln('  доплата', s0(tot.pe)));
     if (Math.abs(tot.rest) > 0.01) W.push(ln('Остаток USDT', t2(tot.rest)));
     var wtitle = 'Отчёт за неделю ' + ddmm(days[0]) + '–' + ddmm(days[6]) + '.' + days[6].slice(0, 4) + ' (суммы в ₽)';
     $('wtext').textContent = wtitle + '\n\n' + W.join('\n');
