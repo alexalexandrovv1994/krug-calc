@@ -133,7 +133,7 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
   window.addEventListener('unhandledrejection', function(e){ show(String(e.reason && e.reason.message || e.reason)); });
 
   /* При выпуске новой версии увеличить APP_V здесь и "v" в version.json */
-  var APP_V = 9;
+  var APP_V = 10;
   window.APP_V = APP_V;
   try {
     fetch('version.json?t=' + Date.now(), {cache: 'no-store'})
@@ -525,7 +525,8 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
           : '<div class="row3"><div class="f">' + rateField(kind, id, r) + '</div>' +
               '<div class="f"><label for="' + id + '-pct">' + nm[1] + '</label><input id="' + id + '-pct" data-k="pct" inputmode="decimal" value="' + esc(r.pct) + '"></div>' +
               '<select data-k="pu" aria-label="Как считать: ' + nm[1].toLowerCase() + '"><option value="pct"' + (r.pu !== 'rate' ? ' selected' : '') + '>%</option>' +
-              '<option value="rate"' + (r.pu === 'rate' ? ' selected' : '') + '>' + nm[2] + '</option></select></div>') +
+              '<option value="rate"' + (r.pu === 'rate' ? ' selected' : '') + '>' + nm[2] + '</option></select></div>' +
+              (kind === 'off' ? '<button type="button" class="link" data-act="split">разделить на конвертацию и вывод</button>' : '')) +
         '<p class="op-sum" id="' + id + '-sum">—</p>' +
       '</div>';
     }).join('');
@@ -767,6 +768,19 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
       var t = e.target.closest('button'); if (!t) return;
       var op = t.closest('.op'), i = +op.dataset.i, r = S[kind][i];
       if (t.dataset.act === 'del'){ S[kind].splice(i, 1); renderOps(kind); changed(); }
+      if (t.dataset.act === 'split'){
+        /* Старая строка с одной «комиссией» → две графы. Итог сохраняем: конвертация 0,1 %,
+           вывод — остаток прежней комиссии (0,2 % → 0,1 + 0,1). Владелец 24.10 увидел, что
+           строки, начатые до обновления, остались с одной графой, и не понял, где новое. */
+        var cc0 = rowCalc(kind, r);
+        var total = cc0 && cc0.gross > 0 ? cc0.extra / cc0.gross * 100 : num0(r.pct);
+        var conv0 = Math.min(0.1, total);
+        r.conv = nf2.format(conv0);
+        r.out = nf2.format(Math.max(total - conv0, 0));
+        delete r.pct; delete r.pu;
+        renderOps(kind); changed();
+        return;
+      }
       if (t.dataset.act === 'rapira'){
         if (!RAPIRA.bid){ loadRapira(); return; }
         r.rate = nfr.format(RAPIRA.bid);
