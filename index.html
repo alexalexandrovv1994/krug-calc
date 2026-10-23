@@ -61,6 +61,8 @@ input,select{width:100%;font:600 18px/1.2 var(--mono);padding:10px 11px;border-r
 select{font:600 15px/1.2 var(--font);padding:10px 6px}
 input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .unit{display:grid;grid-template-columns:minmax(0,1fr) 84px;gap:8px}
+.row3{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 104px;gap:8px;align-items:end}
+.row3 select{font-size:14px;padding:10px 4px}
 .got{margin:0;font-size:14.5px;padding:10px 12px;border-radius:10px;background:var(--accent-soft)}
 .got b,.carry b{font-family:var(--mono)}
 .carry{margin:0;font-size:13.5px;color:var(--muted)}
@@ -128,7 +130,7 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
   window.addEventListener('unhandledrejection', function(e){ show(String(e.reason && e.reason.message || e.reason)); });
 
   /* При выпуске новой версии увеличить APP_V здесь и "v" в version.json */
-  var APP_V = 6;
+  var APP_V = 7;
   window.APP_V = APP_V;
   try {
     fetch('version.json?t=' + Date.now(), {cache: 'no-store'})
@@ -282,6 +284,9 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
   var $ = function(id){ return document.getElementById(id); };
   var nf0 = new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0});
   var nf2 = new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2});
+  /* курсы показываем с теми знаками, что ввели (до 4 после запятой): 83,436 не превращается в 83,44 */
+  var nfr = new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:4});
+  function rr(v){ return nfr.format(v).replace(/^-/, '−'); }
   function minus(s){ return s.replace(/^-/, '−'); }
   function rub(v){ return minus(nf0.format(Math.round(v))) + ' ₽'; }
   function srub(v){ return (Math.round(v) > 0 ? '+' : '') + rub(v); }
@@ -337,7 +342,8 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
   var DEFC = {A:'2 000 000', buy:'85,08', fee:'5 000', cycle:'',
     proc:[{amt:'', unit:'rub', rate:'87,27', pct:'0,75'}],
     off:[{amt:'', unit:'rub', rate:'87,00', pct:'0,4'}]};
-  var NAMES = {proc:['Пополнение','Доплата, %'], off:['Продажа','Комиссия, %']};
+  /* [название строки, подпись поля, вариант «к курсу» в переключателе] */
+  var NAMES = {proc:['Пополнение','Доплата','+ к курсу'], off:['Продажа','Комиссия','− с курса']};
 
   function validC(o){ return o && Array.isArray(o.proc) && Array.isArray(o.off); }
   function cleanC(o){ return {A:o.A || '', buy:o.buy || '', fee:o.fee || '', cycle:o.cycle || '', proc:o.proc, off:o.off}; }
@@ -354,8 +360,8 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
     prev = prev || DEFC;
     var p0 = prev.proc[0] || DEFC.proc[0], o0 = prev.off[0] || DEFC.off[0];
     return {A:'', buy:prev.buy, fee:prev.fee, cycle:defCycle(),
-      proc:[{amt:'', unit:p0.unit, rate:p0.rate, pct:p0.pct}],
-      off:[{amt:'', unit:o0.unit, rate:o0.rate, pct:o0.pct}]};
+      proc:[{amt:'', unit:p0.unit, rate:p0.rate, pct:p0.pct, pu:p0.pu || 'pct'}],
+      off:[{amt:'', unit:o0.unit, rate:o0.rate, pct:o0.pct, pu:o0.pu || 'pct'}]};
   }
 
   var D = {circles:[cleanC(clone(DEFC))], trx:''}, ci = 0, S = D.circles[0];
@@ -366,8 +372,10 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
     var amt = num(r.amt), rate = num(r.rate), pct = num(r.pct);
     if (!(rate > 0) || !(amt >= 0) || !(pct >= 0)) return null;
     var u = r.unit === 'usdt' ? amt : amt / rate;
-    var gross = u * rate, extra = gross * pct / 100;
-    return {u:u, gross:gross, extra:extra, cash: kind === 'proc' ? gross + extra : gross - extra, rate:rate, pct:pct};
+    /* pu: 'pct' — процент от суммы в рублях; 'rate' — рубли на каждый USDT (прибавка к курсу или вычет из него) */
+    var pu = r.pu === 'rate' ? 'rate' : 'pct';
+    var gross = u * rate, extra = pu === 'rate' ? u * pct : gross * pct / 100;
+    return {u:u, gross:gross, extra:extra, cash: kind === 'proc' ? gross + extra : gross - extra, rate:rate, pct:pct, pu:pu};
   }
   function compute(s){
     var A = num(s.A), b = num(s.buy), fee = num(s.fee);
@@ -408,6 +416,7 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
   var TW = 30, MSG = {steps:'', wtext:''};
   function spc(n){ return n > 0 ? new Array(n + 1).join(' ') : ''; }
   function t0(v){ return nf0.format(Math.round(v)).replace(/[  ]/g, ' ').replace(/−/g, '-'); }
+  function tr(v){ return nfr.format(v).replace(/[  ]/g, ' ').replace(/−/g, '-'); }
   function t2(v){ return nf2.format(v).replace(/[  ]/g, ' ').replace(/−/g, '-'); }
   function s0(v){ return (Math.round(v) > 0 ? '+' : '') + t0(v); }
   function ln(label, value){
@@ -424,14 +433,17 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
     var L = ['КРУГ ' + (i + 1) + (c.cycle && CYCLE[c.cycle] ? ' (' + CYCLE[c.cycle].short + ')' : '')];
     L.push(ln('Закуп', t0(R.A)));
     if (R.fee > 0) L.push(ln('Касса', '-' + t0(R.fee)));
-    L.push(ln('Курс покупки', t2(R.b)));
+    L.push(ln('Курс покупки', tr(R.b)));
     L.push(ln('Куплено USDT', t2(R.bought)));
     L.push(HR);
     ['proc','off'].forEach(function(kind){
       (c[kind] || []).forEach(function(r, j){
         var x = R.T[kind].rows[j]; if (!x || x.u === 0) return;
-        L.push(ln((kind === 'proc' ? 'Площадка по ' : 'Офис по ') + t2(x.rate), t0(x.gross)));
-        if (x.extra >= 0.5) L.push(ln('  ' + (kind === 'proc' ? 'доплата ' : 'комиссия ') + t2(x.pct) + '%', (kind === 'proc' ? '+' : '-') + t0(x.extra)));
+        L.push(ln((kind === 'proc' ? 'Площадка по ' : 'Офис по ') + tr(x.rate), t0(x.gross)));
+        if (x.extra >= 0.5) L.push(ln(x.pu === 'rate'
+            ? '  ' + (kind === 'proc' ? '+' + tr(x.pct) + ' к курсу' : '-' + tr(x.pct) + ' с курса')
+            : '  ' + (kind === 'proc' ? 'доплата ' : 'комиссия ') + t2(x.pct) + '%',
+          (kind === 'proc' ? '+' : '-') + t0(x.extra)));
       });
     });
     L.push(HR);
@@ -484,8 +496,10 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
         '<div class="f"><div class="lab"><label for="' + id + '-amt">Сумма</label><button type="button" class="link" data-act="rest">весь остаток</button></div>' +
           '<div class="unit"><input id="' + id + '-amt" data-k="amt" inputmode="decimal" value="' + esc(r.amt) + '">' +
           '<select data-k="unit" aria-label="Единица суммы"><option value="rub"' + (r.unit === 'rub' ? ' selected' : '') + '>₽</option><option value="usdt"' + (r.unit === 'usdt' ? ' selected' : '') + '>USDT</option></select></div></div>' +
-        '<div class="row"><div class="f"><label for="' + id + '-rate">Курс</label><input id="' + id + '-rate" data-k="rate" inputmode="decimal" value="' + esc(r.rate) + '"></div>' +
-          '<div class="f"><label for="' + id + '-pct">' + nm[1] + '</label><input id="' + id + '-pct" data-k="pct" inputmode="decimal" value="' + esc(r.pct) + '"></div></div>' +
+        '<div class="row3"><div class="f"><label for="' + id + '-rate">Курс</label><input id="' + id + '-rate" data-k="rate" inputmode="decimal" value="' + esc(r.rate) + '"></div>' +
+          '<div class="f"><label for="' + id + '-pct">' + nm[1] + '</label><input id="' + id + '-pct" data-k="pct" inputmode="decimal" value="' + esc(r.pct) + '"></div>' +
+          '<select data-k="pu" aria-label="Как считать: ' + nm[1].toLowerCase() + '"><option value="pct"' + (r.pu !== 'rate' ? ' selected' : '') + '>%</option>' +
+          '<option value="rate"' + (r.pu === 'rate' ? ' selected' : '') + '>' + nm[2] + '</option></select></div>' +
         '<p class="op-sum" id="' + id + '-sum">—</p>' +
       '</div>';
     }).join('');
@@ -498,9 +512,11 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
       S[kind].forEach(function(r, i){
         var c = R.T[kind].rows[i], el = $(kind + '-' + i + '-sum'); if (!el) return;
         if (!c){ el.textContent = 'Заполните сумму и курс'; return; }
-        el.innerHTML = usd(c.u) + ' × ' + r2(c.rate) + ' = ' + rub(c.gross) + '<br>' +
-          (kind === 'proc' ? 'доплата ' + r2(c.pct) + ' %: +' + rub(c.extra) : 'комиссия ' + r2(c.pct) + ' %: −' + rub(c.extra)) +
-          ' → <b>' + rub(c.cash) + '</b>';
+        var how = c.pu === 'rate'
+          ? (kind === 'proc' ? 'доплата +' + rr(c.pct) + ' ₽ к курсу (итого ' + rr(c.rate + c.pct) + ')' : 'комиссия −' + rr(c.pct) + ' ₽ с курса (итого ' + rr(c.rate - c.pct) + ')')
+          : (kind === 'proc' ? 'доплата ' + r2(c.pct) + ' %' : 'комиссия ' + r2(c.pct) + ' %');
+        el.innerHTML = usd(c.u) + ' × ' + rr(c.rate) + ' = ' + rub(c.gross) + '<br>' +
+          how + ': ' + (kind === 'proc' ? '+' : '−') + rub(c.extra) + ' → <b>' + rub(c.cash) + '</b>';
       });
     });
     var bal = $('bal');
@@ -687,7 +703,17 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
       S[kind][+op.dataset.i][t.dataset.k] = t.value; changed();
     });
     box.addEventListener('change', function(e){
-      var t = e.target, op = t.closest('.op'); if (!op || t.dataset.k !== 'unit') return;
+      var t = e.target, op = t.closest('.op'); if (!op) return;
+      if (t.dataset.k === 'pu'){
+        /* при переключении пересчитываем число так, чтобы сумма доплаты/комиссии не изменилась */
+        var row = S[kind][+op.dataset.i], cc = rowCalc(kind, row);
+        if (cc && cc.u > 0 && cc.extra > 0) row.pct = t.value === 'rate' ? nfr.format(cc.extra / cc.u) : nf2.format(cc.extra / cc.gross * 100);
+        row.pu = t.value;
+        op.querySelector('[data-k="pct"]').value = row.pct;
+        changed();
+        return;
+      }
+      if (t.dataset.k !== 'unit') return;
       var r = S[kind][+op.dataset.i], c = rowCalc(kind, r);
       if (c){ r.amt = t.value === 'usdt' ? nf2.format(c.u) : nf0.format(Math.round(c.u * c.rate)); }
       r.unit = t.value;
@@ -716,7 +742,7 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
   document.querySelectorAll('[data-add]').forEach(function(btn){
     btn.addEventListener('click', function(){
       var kind = btn.dataset.add, prev = S[kind][S[kind].length - 1] || DEFC[kind][0];
-      S[kind].push({amt:'', unit:prev.unit, rate:prev.rate, pct:prev.pct});
+      S[kind].push({amt:'', unit:prev.unit, rate:prev.rate, pct:prev.pct, pu:prev.pu || 'pct'});
       renderOps(kind); changed();
       var inp = $(kind + '-' + (S[kind].length - 1) + '-amt'); if (inp) inp.focus();
     });
