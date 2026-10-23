@@ -63,6 +63,9 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);ou
 .unit{display:grid;grid-template-columns:minmax(0,1fr) 84px;gap:8px}
 .row3{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 104px;gap:8px;align-items:end}
 .row3 select{font-size:14px;padding:10px 4px}
+.row3c{grid-template-columns:repeat(3,minmax(0,1fr))}
+.rapira{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13.5px;line-height:1.5;padding:9px 12px;border-radius:10px;background:var(--accent-soft)}
+.rapira b{font-family:var(--mono)}
 .got{margin:0;font-size:14.5px;padding:10px 12px;border-radius:10px;background:var(--accent-soft)}
 .got b,.carry b{font-family:var(--mono)}
 .carry{margin:0;font-size:13.5px;color:var(--muted)}
@@ -130,7 +133,7 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
   window.addEventListener('unhandledrejection', function(e){ show(String(e.reason && e.reason.message || e.reason)); });
 
   /* При выпуске новой версии увеличить APP_V здесь и "v" в version.json */
-  var APP_V = 8;
+  var APP_V = 9;
   window.APP_V = APP_V;
   try {
     fetch('version.json?t=' + Date.now(), {cache: 'no-store'})
@@ -193,6 +196,7 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
 
   <section class="card" aria-label="Продажа в офисе биржи">
     <div class="card-h"><h2>Продажа в офисе биржи</h2><span>комиссия за вывод — в минус</span></div>
+    <div class="rapira" aria-live="polite"><span id="rapira-txt">Курс Rapira: загрузка…</span><button type="button" class="link" id="rapira-refresh">обновить</button></div>
     <div class="ops" id="ops-off"></div>
     <button type="button" class="add" data-add="off">+ Добавить продажу</button>
   </section>
@@ -341,7 +345,7 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
   /* ---------- данные: день = несколько кругов ---------- */
   var DEFC = {A:'2 000 000', buy:'85,08', fee:'5 000', cycle:'',
     proc:[{amt:'', unit:'rub', rate:'87,27', pct:'0,75'}],
-    off:[{amt:'', unit:'rub', rate:'87,00', pct:'0,4'}]};
+    off:[{amt:'', unit:'rub', rate:'87,00', conv:'0,1', out:'0,3'}]};
   /* [название строки, подпись поля, вариант «к курсу» в переключателе] */
   var NAMES = {proc:['Пополнение','Доплата','+ к курсу'], off:['Продажа','Комиссия','− с курса']};
 
@@ -361,16 +365,31 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
     var p0 = prev.proc[0] || DEFC.proc[0], o0 = prev.off[0] || DEFC.off[0];
     return {A:'', buy:prev.buy, fee:prev.fee, cycle:defCycle(),
       proc:[{amt:'', unit:p0.unit, rate:p0.rate, pct:p0.pct, pu:p0.pu || 'pct'}],
-      off:[{amt:'', unit:o0.unit, rate:o0.rate, pct:o0.pct, pu:o0.pu || 'pct'}]};
+      off:[{amt:'', unit:o0.unit, rate:o0.rate, conv:o0.conv || '0,1', out:o0.out || '0,3'}]};
   }
 
   var D = {circles:[cleanC(clone(DEFC))], trx:''}, ci = 0, S = D.circles[0];
   var cur = TODAY, savedRec = null, ready = false;
 
   /* ---------- расчёт ---------- */
+  /* Продажа в офисе Rapira идёт в два шага (так объяснил владелец 24.10): USDT продаются
+     за рублёвый код — конвертация 0,1 %, затем код выводится наличными — 0,3 %.
+     Строки, сохранённые до этого, хранят одну «комиссию» (pct) и считаются как раньше. */
+  function twoStep(r){ return r.conv != null || r.out != null; }
+  function num0(s){ return String(s == null ? '' : s).trim() === '' ? 0 : num(s); }
   function rowCalc(kind, r){
-    var amt = num(r.amt), rate = num(r.rate), pct = num(r.pct);
-    if (!(rate > 0) || !(amt >= 0) || !(pct >= 0)) return null;
+    var amt = num(r.amt), rate = num(r.rate);
+    if (!(rate > 0) || !(amt >= 0)) return null;
+    if (kind === 'off' && twoStep(r)){
+      var conv = num0(r.conv), outp = num0(r.out);
+      if (!(conv >= 0) || !(outp >= 0)) return null;
+      var u2 = r.unit === 'usdt' ? amt : amt / rate, g2 = u2 * rate;
+      var convFee = g2 * conv / 100, code = g2 - convFee, outFee = code * outp / 100;
+      return {u:u2, gross:g2, extra:convFee + outFee, cash:code - outFee, rate:rate,
+        two:true, conv:conv, out:outp, convFee:convFee, code:code, outFee:outFee};
+    }
+    var pct = num(r.pct);
+    if (!(pct >= 0)) return null;
     var u = r.unit === 'usdt' ? amt : amt / rate;
     /* pu: 'pct' — процент от суммы в рублях; 'rate' — рубли на каждый USDT (прибавка к курсу или вычет из него) */
     var pu = r.pu === 'rate' ? 'rate' : 'pct';
@@ -440,7 +459,10 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
       (c[kind] || []).forEach(function(r, j){
         var x = R.T[kind].rows[j]; if (!x || x.u === 0) return;
         L.push(ln((kind === 'proc' ? 'Площадка по ' : 'Офис по ') + tr(x.rate), t0(x.gross)));
-        if (x.extra >= 0.5) L.push(ln(x.pu === 'rate'
+        if (x.two){
+          if (x.convFee >= 0.5) L.push(ln('  конвертация ' + t2(x.conv) + '%', '-' + t0(x.convFee)));
+          if (x.outFee >= 0.5) L.push(ln('  вывод ' + t2(x.out) + '%', '-' + t0(x.outFee)));
+        } else if (x.extra >= 0.5) L.push(ln(x.pu === 'rate'
             ? '  ' + (kind === 'proc' ? '+' + tr(x.pct) + ' к курсу' : '-' + tr(x.pct) + ' с курса')
             : '  ' + (kind === 'proc' ? 'доплата ' : 'комиссия ') + t2(x.pct) + '%',
           (kind === 'proc' ? '+' : '-') + t0(x.extra)));
@@ -496,13 +518,23 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
         '<div class="f"><div class="lab"><label for="' + id + '-amt">Сумма</label><button type="button" class="link" data-act="rest">весь остаток</button></div>' +
           '<div class="unit"><input id="' + id + '-amt" data-k="amt" inputmode="decimal" value="' + esc(r.amt) + '">' +
           '<select data-k="unit" aria-label="Единица суммы"><option value="rub"' + (r.unit === 'rub' ? ' selected' : '') + '>₽</option><option value="usdt"' + (r.unit === 'usdt' ? ' selected' : '') + '>USDT</option></select></div></div>' +
-        '<div class="row3"><div class="f"><label for="' + id + '-rate">Курс</label><input id="' + id + '-rate" data-k="rate" inputmode="decimal" value="' + esc(r.rate) + '"></div>' +
-          '<div class="f"><label for="' + id + '-pct">' + nm[1] + '</label><input id="' + id + '-pct" data-k="pct" inputmode="decimal" value="' + esc(r.pct) + '"></div>' +
-          '<select data-k="pu" aria-label="Как считать: ' + nm[1].toLowerCase() + '"><option value="pct"' + (r.pu !== 'rate' ? ' selected' : '') + '>%</option>' +
-          '<option value="rate"' + (r.pu === 'rate' ? ' selected' : '') + '>' + nm[2] + '</option></select></div>' +
+        (kind === 'off' && twoStep(r)
+          ? '<div class="row3 row3c"><div class="f">' + rateField(kind, id, r) + '</div>' +
+              '<div class="f"><label for="' + id + '-conv">Конвертация, %</label><input id="' + id + '-conv" data-k="conv" inputmode="decimal" value="' + esc(r.conv) + '"></div>' +
+              '<div class="f"><label for="' + id + '-out">Вывод, %</label><input id="' + id + '-out" data-k="out" inputmode="decimal" value="' + esc(r.out) + '"></div></div>'
+          : '<div class="row3"><div class="f">' + rateField(kind, id, r) + '</div>' +
+              '<div class="f"><label for="' + id + '-pct">' + nm[1] + '</label><input id="' + id + '-pct" data-k="pct" inputmode="decimal" value="' + esc(r.pct) + '"></div>' +
+              '<select data-k="pu" aria-label="Как считать: ' + nm[1].toLowerCase() + '"><option value="pct"' + (r.pu !== 'rate' ? ' selected' : '') + '>%</option>' +
+              '<option value="rate"' + (r.pu === 'rate' ? ' selected' : '') + '>' + nm[2] + '</option></select></div>') +
         '<p class="op-sum" id="' + id + '-sum">—</p>' +
       '</div>';
     }).join('');
+  }
+  function rateField(kind, id, r){
+    return (kind === 'off'
+        ? '<div class="lab"><label for="' + id + '-rate">Курс</label><button type="button" class="link" data-act="rapira" aria-label="Подставить курс Rapira">Rapira</button></div>'
+        : '<label for="' + id + '-rate">Курс</label>') +
+      '<input id="' + id + '-rate" data-k="rate" inputmode="decimal" value="' + esc(r.rate) + '">';
   }
   var last = null;
   function calc(){
@@ -512,6 +544,12 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
       S[kind].forEach(function(r, i){
         var c = R.T[kind].rows[i], el = $(kind + '-' + i + '-sum'); if (!el) return;
         if (!c){ el.textContent = 'Заполните сумму и курс'; return; }
+        if (c.two){
+          el.innerHTML = usd(c.u) + ' × ' + rr(c.rate) + ' = ' + rub(c.gross) + '<br>' +
+            'конвертация ' + r2(c.conv) + ' %: −' + rub(c.convFee) + ' → рублёвый код ' + rub(c.code) + '<br>' +
+            'вывод ' + r2(c.out) + ' %: −' + rub(c.outFee) + ' → <b>на руки ' + rub(c.cash) + '</b>';
+          return;
+        }
         var how = c.pu === 'rate'
           ? (kind === 'proc' ? 'доплата +' + rr(c.pct) + ' ₽ к курсу (итого ' + rr(c.rate + c.pct) + ')' : 'комиссия −' + rr(c.pct) + ' ₽ с курса (итого ' + rr(c.rate - c.pct) + ')')
           : (kind === 'proc' ? 'доплата ' + r2(c.pct) + ' %' : 'комиссия ' + r2(c.pct) + ' %');
@@ -729,6 +767,12 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
       var t = e.target.closest('button'); if (!t) return;
       var op = t.closest('.op'), i = +op.dataset.i, r = S[kind][i];
       if (t.dataset.act === 'del'){ S[kind].splice(i, 1); renderOps(kind); changed(); }
+      if (t.dataset.act === 'rapira'){
+        if (!RAPIRA.bid){ loadRapira(); return; }
+        r.rate = nfr.format(RAPIRA.bid);
+        op.querySelector('[data-k="rate"]').value = r.rate;
+        changed();
+      }
       if (t.dataset.act === 'rest' && last){
         var c = rowCalc(kind, r), u = Math.max((c ? c.u : 0) + last.rest, 0), rate = num(r.rate);
         if (r.unit === 'usdt') r.amt = nf2.format(u);
@@ -742,7 +786,9 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
   document.querySelectorAll('[data-add]').forEach(function(btn){
     btn.addEventListener('click', function(){
       var kind = btn.dataset.add, prev = S[kind][S[kind].length - 1] || DEFC[kind][0];
-      S[kind].push({amt:'', unit:prev.unit, rate:prev.rate, pct:prev.pct, pu:prev.pu || 'pct'});
+      S[kind].push(kind === 'off'
+        ? {amt:'', unit:prev.unit, rate:prev.rate, conv:prev.conv || '0,1', out:prev.out || '0,3'}
+        : {amt:'', unit:prev.unit, rate:prev.rate, pct:prev.pct, pu:prev.pu || 'pct'});
       renderOps(kind); changed();
       var inp = $(kind + '-' + (S[kind].length - 1) + '-amt'); if (inp) inp.focus();
     });
@@ -867,6 +913,36 @@ pre{margin:0;white-space:pre;overflow-x:auto;font:13px/1.55 var(--mono);backgrou
       window.open(url, '_blank');
     });
   });
+
+  /* ---------- курс Rapira ----------
+     Rapira отдаёт курс браузеру только со своего сайта, поэтому берём его через
+     exchcrypto.ru (наш сервер в Beget сам спрашивает Rapira и помнит ответ 30 секунд).
+     Комиссии Казани — с сайта Rapira на 24.10.2026: выдача наличных 0,3 %,
+     продажа по рынку на бирже 0,1 %. Поменяются — поправить здесь. */
+  var RAPIRA = {bid:0, ask:0, at:null};
+  var KZN_OUT = 0.003, TAKER = 0.001;
+  function showRapira(failed){
+    var el = $('rapira-txt');
+    if (!RAPIRA.bid){ el.textContent = failed ? 'Курс Rapira сейчас недоступен' : 'Курс Rapira: загрузка…'; return; }
+    var t = RAPIRA.at;
+    el.innerHTML = 'Rapira: продажа <b>' + rr(RAPIRA.bid) + '</b> · покупка <b>' + rr(RAPIRA.ask) + '</b><br>' +
+      'на руки в Казани ≈ <b>' + r2(RAPIRA.bid * (1 - TAKER) * (1 - KZN_OUT)) + '</b> · ' + pad(t.getHours()) + ':' + pad(t.getMinutes()) +
+      (failed ? ' · не обновился' : '');
+  }
+  function loadRapira(){
+    fetch('https://exchcrypto.ru/rates', {cache: 'no-store'})
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(d){
+        var u = (d.data || []).filter(function(x){ return x.symbol === 'USDT/RUB'; })[0];
+        if (!u || !(+u.bidPrice > 0)) throw new Error('нет USDT/RUB');
+        RAPIRA = {bid: +u.bidPrice, ask: +u.askPrice, at: new Date()};
+        showRapira(false);
+      })
+      .catch(function(){ showRapira(true); });
+  }
+  $('rapira-refresh').addEventListener('click', loadRapira);
+  loadRapira();
+  setInterval(function(){ if (!document.hidden) loadRapira(); }, 60000);
 
   $('diag').textContent = 'версия ' + (window.APP_V || '?') + ' · ' + (inTg ? 'Telegram ' + (tg.version || '?') + ' · ' + (tg.platform || '?') : 'вне Telegram') +
     ' · данные: ' + (cloud ? 'общие для всех устройств' : 'только на этом устройстве');
